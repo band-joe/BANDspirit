@@ -100,9 +100,11 @@ services:
       # E-Mail-Versand schlug still fehl (Fehler wird nur geloggt, siehe
       # NotificationService.SendEmailAsync / AuthController.ForgotPassword).
       - Smtp__Host=${EXCHANGE_SMTP_HOST:-mail.band.local}
-      - Smtp__Port=${EXCHANGE_SMTP_PORT:-587}
-      # Security: None (Port 25 intern) | StartTls (587, z. B. Office 365) | SslOnConnect (465) | Auto
-      - Smtp__Security=${SMTP_SECURITY:-StartTls}
+      - Smtp__Port=${EXCHANGE_SMTP_PORT:-25}
+      # Security: None (Port 25, interner Relay fw.band.ch) | StartTls (587, z. B. Office 365) | SslOnConnect (465) | Auto
+      # Default None, da der aktuell konfigurierte interne Relay (192.168.11.1:25)
+      # kein STARTTLS anbietet/erwartet. Bei Umstellung auf Office 365 (587) SMTP_SECURITY=StartTls setzen.
+      - Smtp__Security=${SMTP_SECURITY:-None}
       # Auth optional – leer lassen, wenn der Relay ohne Anmeldung annimmt
       - Smtp__User=${EXCHANGE_SMTP_USER:-}
       - Smtp__Password=${EXCHANGE_SMTP_PASSWORD:-}
