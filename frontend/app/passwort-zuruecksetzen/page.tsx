@@ -61,10 +61,10 @@ function ResetForm() {
       });
 
       const data = await res.json();
-      if (res.ok && data.success) {
+      if (res.ok) {
         setSuccess(true);
       } else {
-        setError(data.error || 'Ein Fehler ist aufgetreten');
+        setError(data.fehler || 'Ein Fehler ist aufgetreten');
       }
     } catch {
       setError('Verbindungsfehler. Bitte versuchen Sie es erneut.');
