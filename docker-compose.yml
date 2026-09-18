@@ -93,17 +93,22 @@ services:
       - S3__BucketName=${S3_BUCKET_NAME:-bandspirit}
       - S3__Region=us-east-1
       - S3__ForcePathStyle=true
-      # ── SMTP E-Mail-Versand (interner Relay) ──
-      - Smtp__Host=${SMTP_HOST:-mail.band.local}
-      - Smtp__Port=${SMTP_PORT:-25}
-      # Security: None (Port 25 intern) | StartTls (587) | SslOnConnect (465) | Auto
-      - Smtp__Security=${SMTP_SECURITY:-None}
+      # ── SMTP E-Mail-Versand (Microsoft Exchange / interner Relay) ──
+      # WICHTIG: .env verwendet die EXCHANGE_SMTP_*-Namen (siehe .env.example).
+      # Zuvor las dieser Block abweichende SMTP_*-Variablen, die in .env nie
+      # gesetzt waren -> Backend nutzte immer den mail.band.local-Fallback,
+      # E-Mail-Versand schlug still fehl (Fehler wird nur geloggt, siehe
+      # NotificationService.SendEmailAsync / AuthController.ForgotPassword).
+      - Smtp__Host=${EXCHANGE_SMTP_HOST:-mail.band.local}
+      - Smtp__Port=${EXCHANGE_SMTP_PORT:-587}
+      # Security: None (Port 25 intern) | StartTls (587, z. B. Office 365) | SslOnConnect (465) | Auto
+      - Smtp__Security=${SMTP_SECURITY:-StartTls}
       # Auth optional – leer lassen, wenn der Relay ohne Anmeldung annimmt
-      - Smtp__User=${SMTP_USER:-}
-      - Smtp__Password=${SMTP_PASSWORD:-}
-      - Smtp__FromEmail=${SMTP_FROM_EMAIL:-noreply@band.ch}
-      - Smtp__FromName=${SMTP_FROM_NAME:-BANDspirit}
-      - Smtp__AdminEmail=${SMTP_ADMIN_EMAIL:-admin@band.ch}
+      - Smtp__User=${EXCHANGE_SMTP_USER:-}
+      - Smtp__Password=${EXCHANGE_SMTP_PASSWORD:-}
+      - Smtp__FromEmail=${EXCHANGE_FROM_EMAIL:-noreply@band.ch}
+      - Smtp__FromName=${EXCHANGE_FROM_NAME:-BANDspirit}
+      - Smtp__AdminEmail=${EXCHANGE_ADMIN_EMAIL:-admin@band.ch}
       - App__BaseUrl=${NEXTAUTH_URL}
     depends_on:
       postgres:
