@@ -1,0 +1,225 @@
+# ====
+# BANDspirit — Docker Compose V1.0.2
+# Nginx (Reverse Proxy) + App (Next.js) + API (C# OData) + PostgreSQL + Redis
+# Zielplattform: Ubuntu Server 26.04 LTS auf Proxmox VM
+# ====
+# Verwendung:
+#   1. .env.docker.example → .env.docker kopieren und Werte anpassen
+#   2. docker compose --env-file .env.docker up -d --build
+#   3. EF Core Migrations anwenden (erstmalig / nach Updates):
+#      docker compose --env-file .env.docker exec api dotnet BandSpirit.Api.dll --migrate
+#      (oder: docker compose exec api dotnet ef database update  — nur in Dev)
+# ====
+
+services:
+
+  # ── Nginx — Reverse Proxy ────────────────────────────────────────────────────
+  nginx:
+    image: nginx:1.27-alpine
+    container_name: bandspirit-nginx
+    restart: unless-stopped
+    ports:
+      - '${NGINX_HTTP_PORT:-80}:80'
+      - '${NGINX_HTTPS_PORT:-443}:443'
+    volumes:
+      - ./docker/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./docker/nginx/conf.d:/etc/nginx/conf.d:ro
+      - ./docker/nginx/ssl:/etc/nginx/ssl:ro
+      - nginx-logs:/var/log/nginx
+    depends_on:
+      app:
+        condition: service_healthy
+      api:
+        condition: service_healthy
+    networks:
+      - bandspirit-net
+    healthcheck:
+      test: ['CMD', 'wget', '--no-verbose', '--tries=1', '-O', '/dev/null', 'http://localhost:80/nginx-health']
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  # ── API — C# ASP.NET Core OData Backend ─────────────────────────────────────
+  api:
+    build:
+      context: ./BandSpirit.Api
+      dockerfile: Dockerfile
+    container_name: bandspirit-api
+    restart: unless-stopped
+    expose:
+      - '8080'
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Production
+      - ASPNETCORE_URLS=http://+:8080
+
+      # ── Datenbank ──
+      - ConnectionStrings__Default=Host=postgres;Port=5432;Database=${POSTGRES_DB:-bandspirit};Username=${POSTGRES_USER:-bandspirit};Password=${POSTGRES_PASSWORD:?Passwort erforderlich};Timeout=15;CommandTimeout=30;Pooling=true;MaxPoolSize=100
+
+      # ── JWT ──
+      - Jwt__Secret=${JWT_SECRET:?JWT Secret erforderlich}
+      - Jwt__ExpiresHours=8
+
+      # ── Microsoft Entra ID (optionales SSO) ──
+      - AzureAd__ClientId=${AZURE_AD_CLIENT_ID:-}
+      - AzureAd__ClientSecret=${AZURE_AD_CLIENT_SECRET:-}
+      - AzureAd__TenantId=${AZURE_AD_TENANT_ID:-}
+      - AzureAd__Enabled=${AZURE_AD_ENABLED:-false}
+
+      # ── AWS S3 (Datei-Upload) ──
+      - Aws__Region=${AWS_REGION:-}
+      - Aws__AccessKeyId=${AWS_ACCESS_KEY_ID:-}
+      - Aws__SecretAccessKey=${AWS_SECRET_ACCESS_KEY:-}
+      - Aws__BucketName=${AWS_BUCKET_NAME:-}
+      - Aws__FolderPrefix=${AWS_FOLDER_PREFIX:-}
+
+      # ── Abacus.AI Notifications (E-Mail) ──
+      - AbacusAi__ApiKey=${ABACUSAI_API_KEY:-}
+      - AbacusAi__WebAppId=${WEB_APP_ID:-}
+      - AbacusAi__NotifIds__PasswortZuruecksetzen=${NOTIF_ID_PASSWORT_ZURCKSETZEN:-}
+      - AbacusAi__NotifIds__MeetingEinladungIcs=${NOTIF_ID_MEETINGEINLADUNG_ICS:-}
+      - AbacusAi__NotifIds__SupportTicketErstellt=${NOTIF_ID_SUPPORT_TICKET_ERSTELLT:-}
+
+      # ── Redis (RBAC-Cache, Rate-Limiting) ──
+      - Redis__ConnectionString=redis:6379
+
+      # ── CORS ──
+      - Cors__AllowedOrigin=${NEXTAUTH_URL:-http://localhost}
+
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - bandspirit-net
+    healthcheck:
+      test: ['CMD', 'wget', '--no-verbose', '--tries=1', '-O', '/dev/null', 'http://localhost:8080/health']
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 40s
+
+  # ── App — Next.js Frontend (Standalone) ─────────────────────────────────────
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        NODE_ENV: production
+    container_name: bandspirit-app
+    restart: unless-stopped
+    expose:
+      - '3000'
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+
+      # ── next-auth ──
+      - NEXTAUTH_URL=${NEXTAUTH_URL:-http://localhost}
+      - NEXTAUTH_SECRET=${NEXTAUTH_SECRET:?Secret erforderlich}
+
+      # ── C# Backend (serverseitig — Docker-intern, nicht öffentlich) ──
+      - API_BASE_URL=http://api:8080
+
+      # ── C# Backend (clientseitig — öffentlich erreichbar via Nginx) ──
+      - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL:?Öffentliche API-URL erforderlich}
+
+      # ── Microsoft Entra ID (next-auth AzureADProvider — optional) ──
+      - AZURE_AD_CLIENT_ID=${AZURE_AD_CLIENT_ID:-}
+      - AZURE_AD_CLIENT_SECRET=${AZURE_AD_CLIENT_SECRET:-}
+      - AZURE_AD_TENANT_ID=${AZURE_AD_TENANT_ID:-}
+
+      # ENTFÄLLT gegenüber V1.0.0:
+      # DATABASE_URL, AWS_*, ABACUSAI_API_KEY, WEB_APP_ID, NOTIF_ID_* → sind jetzt im api-Service
+
+    depends_on:
+      api:
+        condition: service_healthy
+    networks:
+      - bandspirit-net
+    healthcheck:
+      test: ['CMD', 'wget', '--no-verbose', '--tries=1', '-O', '/dev/null', 'http://localhost:3000']
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  # ── PostgreSQL ───────────────────────────────────────────────────────────────
+  postgres:
+    image: postgres:16-alpine
+    container_name: bandspirit-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-bandspirit}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Passwort erforderlich}
+      POSTGRES_DB: ${POSTGRES_DB:-bandspirit}
+      PGDATA: /var/lib/postgresql/data/pgdata
+      POSTGRES_INITDB_ARGS: '--encoding=UTF-8 --lc-collate=de_CH.UTF-8 --lc-ctype=de_CH.UTF-8'
+    ports:
+      - '${POSTGRES_PORT:-5432}:5432'
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./docker/postgres/init:/docker-entrypoint-initdb.d:ro
+    networks:
+      - bandspirit-net
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U ${POSTGRES_USER:-bandspirit} -d ${POSTGRES_DB:-bandspirit}']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+    command:
+      - 'postgres'
+      - '-c'
+      - 'max_connections=100'
+      - '-c'
+      - 'shared_buffers=256MB'
+      - '-c'
+      - 'effective_cache_size=768MB'
+      - '-c'
+      - 'work_mem=4MB'
+      - '-c'
+      - 'maintenance_work_mem=128MB'
+      - '-c'
+      - 'log_timezone=Europe/Zurich'
+      - '-c'
+      - 'timezone=Europe/Zurich'
+      - '-c'
+      - 'idle_in_transaction_session_timeout=30000'
+      - '-c'
+      - 'statement_timeout=30000'
+
+  # ── Redis — RBAC-Cache & Rate-Limiting ──────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    container_name: bandspirit-redis
+    restart: unless-stopped
+    expose:
+      - '6379'
+    volumes:
+      - redis-data:/data
+    networks:
+      - bandspirit-net
+    command: redis-server --appendonly yes --maxmemory 128mb --maxmemory-policy allkeys-lru --save 60 1000
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 5s
+
+# ── Volumes ──────────────────────────────────────────────────────────────────
+volumes:
+  postgres-data:
+    driver: local
+  redis-data:
+    driver: local
+  nginx-logs:
+    driver: local
+
+# ── Netzwerk ─────────────────────────────────────────────────────────────────
+networks:
+  bandspirit-net:
+    driver: bridge
+    name: bandspirit-network

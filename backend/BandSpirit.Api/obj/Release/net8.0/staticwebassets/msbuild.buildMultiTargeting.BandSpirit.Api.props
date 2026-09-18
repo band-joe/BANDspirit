@@ -1,0 +1,3 @@
+﻿<Project>
+  <Import Project="../build/BandSpirit.Api.props" />
+</Project>

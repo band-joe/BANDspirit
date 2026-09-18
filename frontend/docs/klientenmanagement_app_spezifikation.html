@@ -1,0 +1,1061 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>App-Spezifikation — Klientenmanagement-System</title>
+<style>
+:root{--primary:#1a237e;--accent:#0d47a1;--success:#2e7d32;--warn:#e65100;--bg:#f5f7fa;--card:#fff;--border:#e0e0e0;--text:#212121;--muted:#757575;--radius:10px}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'Segoe UI',system-ui,-apple-system,sans-serif;background:var(--bg);color:var(--text);line-height:1.6;padding:0}
+.hero{background:linear-gradient(135deg,var(--primary) 0%,var(--accent) 100%);color:#fff;padding:60px 40px 50px;text-align:center}
+.hero h1{font-size:2.4rem;margin-bottom:8px;letter-spacing:-0.5px}
+.hero .sub{font-size:1.1rem;opacity:.85}
+.hero .meta{margin-top:18px;font-size:.85rem;opacity:.65}
+.container{max-width:1100px;margin:0 auto;padding:30px 24px 60px}
+nav.toc{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:28px 32px;margin-bottom:36px}
+nav.toc h2{font-size:1.2rem;margin-bottom:14px;color:var(--primary)}
+nav.toc ol{padding-left:22px}
+nav.toc li{margin-bottom:6px}
+nav.toc a{color:var(--accent);text-decoration:none;font-weight:500}
+nav.toc a:hover{text-decoration:underline}
+section{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:32px;margin-bottom:28px}
+h2{font-size:1.55rem;color:var(--primary);margin-bottom:18px;padding-bottom:10px;border-bottom:3px solid var(--accent)}
+h3{font-size:1.15rem;color:var(--accent);margin:22px 0 10px}
+h4{font-size:1rem;margin:14px 0 6px;color:#333}
+p,li{font-size:.95rem}
+ul,ol{padding-left:22px;margin-bottom:12px}
+li{margin-bottom:5px}
+table{width:100%;border-collapse:collapse;margin:16px 0;font-size:.88rem}
+th,td{border:1px solid var(--border);padding:10px 12px;text-align:left}
+th{background:#e8eaf6;color:var(--primary);font-weight:600}
+tr:nth-child(even){background:#fafafa}
+.badge{display:inline-block;padding:2px 10px;border-radius:20px;font-size:.75rem;font-weight:600;color:#fff;margin-right:4px}
+.b-must{background:var(--warn)}.b-should{background:#f9a825;color:#333}.b-nice{background:#66bb6a}
+.diagram{background:#f0f2f5;border:1px solid var(--border);border-radius:8px;padding:20px;margin:16px 0;font-family:'Courier New',monospace;font-size:.82rem;line-height:1.55;overflow-x:auto;white-space:pre}
+.workflow{display:flex;flex-wrap:wrap;gap:10px;margin:16px 0;align-items:center}
+.wf-step{background:#e3f2fd;border:2px solid var(--accent);border-radius:8px;padding:10px 16px;font-weight:600;font-size:.85rem;text-align:center;min-width:120px}
+.wf-arrow{font-size:1.4rem;color:var(--accent);font-weight:700}
+.grid-2{display:grid;grid-template-columns:1fr 1fr;gap:20px}
+@media(max-width:700px){.grid-2{grid-template-columns:1fr}}
+.card-inner{background:#f8f9fb;border:1px solid var(--border);border-radius:8px;padding:18px}
+.card-inner h4{margin-top:0}
+.screen-mock{background:#fff;border:2px solid var(--border);border-radius:8px;padding:16px;margin:12px 0;position:relative}
+.screen-mock::before{content:'🖥️ UI-Ansicht';position:absolute;top:-12px;left:16px;background:var(--card);padding:0 8px;font-size:.75rem;color:var(--muted);font-weight:600}
+.screen-mock .field-row{display:flex;flex-wrap:wrap;gap:10px;margin-bottom:10px}
+.screen-mock .field{flex:1;min-width:180px;background:#f5f5f5;border:1px solid #ddd;border-radius:5px;padding:8px 12px;font-size:.82rem;color:#555}
+.screen-mock .field span{display:block;font-size:.7rem;color:var(--muted);margin-bottom:2px;text-transform:uppercase;font-weight:600}
+.api-box{background:#263238;color:#e0e0e0;border-radius:8px;padding:16px;margin:10px 0;font-family:'Courier New',monospace;font-size:.82rem;overflow-x:auto}
+.api-box .method{font-weight:700;margin-right:8px}.get{color:#66bb6a}.post{color:#42a5f5}.put{color:#ffa726}.del{color:#ef5350}
+.priority-table td:first-child{font-weight:600}
+.tag{display:inline-block;background:#e8eaf6;color:var(--primary);padding:2px 8px;border-radius:4px;font-size:.75rem;margin:2px}
+footer{text-align:center;padding:30px;color:var(--muted);font-size:.8rem}
+</style>
+</head>
+<body>
+
+<!-- ==================== HERO ==================== -->
+<div class="hero">
+  <h1>📋 Klientenmanagement-System</h1>
+  <div class="sub">Umsetzbare App-Spezifikation — Deep Dive Contest</div>
+  <div class="meta">Version 1.0 · Mai 2026 · Abacus AI Agent</div>
+</div>
+
+<div class="container">
+
+<!-- ==================== TOC ==================== -->
+<nav class="toc" id="top">
+  <h2>Inhaltsverzeichnis</h2>
+  <ol>
+    <li><a href="#s1">Projektübersicht & Ziele</a></li>
+    <li><a href="#s2">Systemarchitektur</a></li>
+    <li><a href="#s3">Datenmodell (ER-Schema)</a></li>
+    <li><a href="#s4">Modul 1 — Klienten-Stammdaten</a></li>
+    <li><a href="#s5">Modul 2 — Arbeitsplatz</a></li>
+    <li><a href="#s6">Modul 3 — Intake</a></li>
+    <li><a href="#s7">Modul 4 — Einsatzplanung Klient</a></li>
+    <li><a href="#s8">Modul 5 — Berufsbilder</a></li>
+    <li><a href="#s9">Modul 6 — Berichtswesen</a></li>
+    <li><a href="#s10">Modul 7 — Abrechnungsmodul</a></li>
+    <li><a href="#s11">Workflow-Engine</a></li>
+    <li><a href="#s12">API-Spezifikation</a></li>
+    <li><a href="#s13">Berechtigungskonzept (RBAC)</a></li>
+    <li><a href="#s14">Nicht-funktionale Anforderungen</a></li>
+    <li><a href="#s15">Umsetzungsplan & Roadmap</a></li>
+  </ol>
+</nav>
+
+<!-- ==================== 1. Projektübersicht ==================== -->
+<section id="s1">
+  <h2>1. Projektübersicht & Ziele</h2>
+
+  <h3>1.1 Vision</h3>
+  <p>Ein zentrales, webbasiertes <strong>Klientenmanagement-System</strong> für soziale Dienstleister, Beschäftigungsträger und Bildungseinrichtungen. Das System steuert den gesamten Lebenszyklus eines Klienten — vom Erst-Intake über die Einsatzplanung bis zur Abrechnung und Berichterstattung.</p>
+
+  <h3>1.2 Kernziele</h3>
+  <ul>
+    <li><span class="badge b-must">MUSS</span> Zentrale Stammdatenverwaltung aller Klienten</li>
+    <li><span class="badge b-must">MUSS</span> Strukturierter Intake-Prozess mit Checklisten</li>
+    <li><span class="badge b-must">MUSS</span> Einsatzplanung mit Kalender-Integration</li>
+    <li><span class="badge b-must">MUSS</span> Vorlagenbasiertes Berichtswesen (PDF/DOCX)</li>
+    <li><span class="badge b-must">MUSS</span> Abrechnungsmodul mit Workflow-Unterstützung</li>
+    <li><span class="badge b-should">SOLL</span> Berufsbilder-Katalog mit Kompetenz-Matching</li>
+    <li><span class="badge b-should">SOLL</span> Arbeitsplatz-Verwaltung mit Kapazitätsübersicht</li>
+    <li><span class="badge b-nice">KANN</span> Dashboard mit KPI-Widgets</li>
+    <li><span class="badge b-nice">KANN</span> Mobile-responsive Ansichten</li>
+  </ul>
+
+  <h3>1.3 Zielgruppen</h3>
+  <table>
+    <tr><th>Rolle</th><th>Beschreibung</th><th>Haupt-Module</th></tr>
+    <tr><td>Fallmanager/in</td><td>Betreut Klienten, erstellt Berichte</td><td>Stammdaten, Intake, Berichte</td></tr>
+    <tr><td>Einsatzplaner/in</td><td>Plant Einsätze und Arbeitsplätze</td><td>Einsatzplanung, Arbeitsplatz</td></tr>
+    <tr><td>Buchhalter/in</td><td>Verwaltet Abrechnungen</td><td>Abrechnung, Berichte</td></tr>
+    <tr><td>Teamleitung</td><td>Übersicht, Freigaben, KPIs</td><td>Alle Module (Read/Approve)</td></tr>
+    <tr><td>Administrator</td><td>Systemkonfiguration, Benutzerverwaltung</td><td>Admin-Panel</td></tr>
+  </table>
+</section>
+
+<!-- ==================== 2. Systemarchitektur ==================== -->
+<section id="s2">
+  <h2>2. Systemarchitektur</h2>
+
+  <h3>2.1 Technologie-Stack</h3>
+  <table>
+    <tr><th>Schicht</th><th>Technologie</th><th>Begründung</th></tr>
+    <tr><td>Frontend</td><td>React 18 + TypeScript + Tailwind CSS</td><td>Komponentenbasiert, schnelle Iteration</td></tr>
+    <tr><td>UI-Bibliothek</td><td>shadcn/ui + Radix Primitives</td><td>Zugänglich, konsistent, anpassbar</td></tr>
+    <tr><td>State Management</td><td>Zustand + React Query</td><td>Leichtgewichtig, Server-State-Caching</td></tr>
+    <tr><td>Backend</td><td>Node.js (Express/Fastify) + TypeScript</td><td>Einheitliche Sprache, async I/O</td></tr>
+    <tr><td>ORM</td><td>Prisma</td><td>Typsichere DB-Zugriffe, Migrationen</td></tr>
+    <tr><td>Datenbank</td><td>PostgreSQL 16</td><td>Relational, JSON-Support, bewährt</td></tr>
+    <tr><td>Auth</td><td>NextAuth.js / Keycloak</td><td>SSO, RBAC, OAuth2/OIDC</td></tr>
+    <tr><td>Workflow-Engine</td><td>Eigenbau (State-Machine) + BullMQ</td><td>Flexibel, Queue-basiert</td></tr>
+    <tr><td>Reporting</td><td>Puppeteer (PDF) + docxtpl (DOCX)</td><td>Template-basierte Dokumentgenerierung</td></tr>
+    <tr><td>Deployment</td><td>Docker + Docker Compose</td><td>Portabel, reproduzierbar</td></tr>
+  </table>
+
+  <h3>2.2 Architektur-Diagramm</h3>
+  <div class="diagram">
+┌─────────────────────────────────────────────────────────────────────────┐
+│                          BROWSER (React SPA)                            │
+│  ┌──────────┐ ┌──────────┐ ┌────────┐ ┌──────────┐ ┌──────────────┐   │
+│  │Stammdaten│ │ Intake   │ │Planung │ │ Berichte │ │ Abrechnung   │   │
+│  └────┬─────┘ └────┬─────┘ └───┬────┘ └────┬─────┘ └──────┬───────┘   │
+└───────┼─────────────┼───────────┼───────────┼──────────────┼───────────┘
+        │  REST / JSON API  (Bearer Token Auth)               │
+┌───────┼─────────────┼───────────┼───────────┼──────────────┼───────────┐
+│       ▼             ▼           ▼           ▼              ▼           │
+│  ┌─────────────────────────────────────────────────────────────────┐   │
+│  │                    API-Gateway / Router                          │   │
+│  └───────────────────────────┬─────────────────────────────────────┘   │
+│              ┌────────────────┼─────────────────┐                      │
+│              ▼                ▼                  ▼                      │
+│  ┌──────────────┐  ┌──────────────┐  ┌────────────────┐               │
+│  │  Service Layer│  │ Workflow Eng.│  │ Report Engine  │               │
+│  │  (Business L.)│  │ (BullMQ)    │  │ (Puppeteer/    │               │
+│  │              │  │              │  │  docxtpl)      │               │
+│  └──────┬───────┘  └──────┬───────┘  └───────┬────────┘               │
+│         └──────────────────┼──────────────────┘                        │
+│                            ▼                                           │
+│              ┌──────────────────────────┐                              │
+│              │    Prisma ORM Layer       │                              │
+│              └────────────┬─────────────┘                              │
+│                           ▼                                            │
+│              ┌──────────────────────────┐                              │
+│              │   PostgreSQL 16 (DB)      │                              │
+│              └──────────────────────────┘                              │
+│                     NODE.JS BACKEND                                    │
+└────────────────────────────────────────────────────────────────────────┘
+  </div>
+</section>
+
+<!-- ==================== 3. Datenmodell ==================== -->
+<section id="s3">
+  <h2>3. Datenmodell (ER-Schema)</h2>
+
+  <h3>3.1 Kern-Entitäten</h3>
+  <div class="diagram">
+┌──────────────────┐       ┌──────────────────┐       ┌──────────────────┐
+│     KLIENT       │       │     INTAKE       │       │  EINSATZPLAN     │
+├──────────────────┤       ├──────────────────┤       ├──────────────────┤
+│ id           PK  │──┐    │ id           PK  │       │ id           PK  │
+│ vorname          │  │    │ klient_id    FK  │◄──┐   │ klient_id    FK  │◄──┐
+│ nachname         │  │    │ datum            │   │   │ arbeitsplatz FK  │   │
+│ geburtsdatum     │  │    │ status           │   │   │ start_datum      │   │
+│ geschlecht       │  ├───►│ zuweiser         │   │   │ end_datum        │   │
+│ adresse (JSON)   │  │    │ checkliste JSON  │   │   │ stunden_woche    │   │
+│ telefon          │  │    │ notizen          │   │   │ status           │   │
+│ email            │  │    │ bearbeiter_id FK │   │   │ berufsbild_id FK │   │
+│ sv_nummer        │  │    │ created_at       │   │   │ created_at       │   │
+│ kostentraeger_id │  │    └──────────────────┘   │   └──────────────────┘   │
+│ status           │  │                           │                          │
+│ created_at       │  │    ┌──────────────────┐   │   ┌──────────────────┐   │
+│ updated_at       │  │    │  ARBEITSPLATZ    │   │   │   BERUFSBILD     │   │
+└──────────────────┘  │    ├──────────────────┤   │   ├──────────────────┤   │
+                      │    │ id           PK  │   │   │ id           PK  │   │
+┌──────────────────┐  │    │ bezeichnung      │   │   │ bezeichnung      │   │
+│   ABRECHNUNG     │  │    │ standort         │   │   │ branche          │   │
+├──────────────────┤  │    │ kapazitaet       │   │   │ anforderungen    │   │
+│ id           PK  │  │    │ ansprechpartner  │   │   │ kompetenzen JSON │   │
+│ klient_id    FK  │◄─┤    │ kontakt          │   │   │ beschreibung     │   │
+│ einsatzplan_id FK│  │    │ aktiv            │   │   │ aktiv            │   │
+│ leistung_id  FK  │  │    │ created_at       │   │   └──────────────────┘   │
+│ zeitraum_von     │  │    └──────────────────┘   │                          │
+│ zeitraum_bis     │  │                           │   ┌──────────────────┐   │
+│ betrag           │  │    ┌──────────────────┐   │   │   LEISTUNG       │   │
+│ status           │  │    │    BERICHT       │   │   ├──────────────────┤   │
+│ workflow_state   │  │    ├──────────────────┤   │   │ id           PK  │   │
+│ freigabe_von     │  │    │ id           PK  │   │   │ bezeichnung      │   │
+│ freigabe_datum   │  └───►│ klient_id    FK  │───┘   │ einheit          │   │
+│ created_at       │       │ template_id  FK  │       │ preis_pro_einheit│   │
+└──────────────────┘       │ einsatz_id   FK  │───────│ kategorie        │   │
+                           │ inhalt      JSON │       │ aktiv            │   │
+                           │ status           │       └──────────────────┘   │
+                           │ erstellt_von  FK │                              │
+                           │ created_at       │   ┌──────────────────┐       │
+                           └──────────────────┘   │ BERICHTS_TEMPLATE│       │
+                                                  ├──────────────────┤       │
+┌──────────────────┐       ┌──────────────────┐   │ id           PK  │       │
+│   BENUTZER       │       │ KOSTENTRAEGER    │   │ name             │       │
+├──────────────────┤       ├──────────────────┤   │ vorlage_datei    │       │
+│ id           PK  │       │ id           PK  │   │ platzhalter JSON │       │
+│ name             │       │ bezeichnung      │   │ modul            │       │
+│ email            │       │ typ              │   │ aktiv            │       │
+│ rolle            │       │ kontakt          │   └──────────────────┘       │
+│ aktiv            │       │ abrechnungs_info │                              │
+└──────────────────┘       └──────────────────┘                              │
+  </div>
+
+  <h3>3.2 Datenbank-Schema (Prisma-Auszug)</h3>
+  <div class="api-box">
+<span style="color:#80cbc4">// schema.prisma — Kernmodelle</span>
+
+model Klient {
+  id              String       @id @default(uuid())
+  vorname         String
+  nachname        String
+  geburtsdatum    DateTime
+  geschlecht      Geschlecht
+  adresse         Json         <span style="color:#80cbc4">// { strasse, plz, ort, land }</span>
+  telefon         String?
+  email           String?
+  svNummer        String       @unique
+  status          KlientStatus @default(AKTIV)
+  kostentraegerId String?
+  kostentraeger   Kostentraeger? @relation(fields: [kostentraegerId], ...)
+  intakes         Intake[]
+  einsatzplaene   Einsatzplan[]
+  abrechnungen    Abrechnung[]
+  berichte        Bericht[]
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+}
+
+enum KlientStatus { AKTIV INAKTIV ARCHIVIERT }
+enum Geschlecht   { MAENNLICH WEIBLICH DIVERS }
+
+model Intake {
+  id            String      @id @default(uuid())
+  klientId      String
+  klient        Klient      @relation(fields: [klientId], ...)
+  datum         DateTime    @default(now())
+  status        IntakeStatus @default(OFFEN)
+  zuweiser      String?
+  checkliste    Json        <span style="color:#80cbc4">// [{ punkt, erledigt, notiz }]</span>
+  notizen       String?     @db.Text
+  bearbeiterId  String
+  bearbeiter    Benutzer    @relation(fields: [bearbeiterId], ...)
+  createdAt     DateTime    @default(now())
+}
+
+enum IntakeStatus { OFFEN IN_BEARBEITUNG ABGESCHLOSSEN ABGEBROCHEN }
+
+model Einsatzplan {
+  id            String       @id @default(uuid())
+  klientId      String
+  klient        Klient       @relation(fields: [klientId], ...)
+  arbeitsplatzId String
+  arbeitsplatz  Arbeitsplatz @relation(fields: [arbeitsplatzId], ...)
+  berufsbildId  String?
+  berufsbild    Berufsbild?  @relation(fields: [berufsbildId], ...)
+  startDatum    DateTime
+  endDatum      DateTime?
+  stundenWoche  Decimal
+  status        PlanStatus   @default(GEPLANT)
+  createdAt     DateTime     @default(now())
+}
+
+enum PlanStatus { GEPLANT AKTIV PAUSIERT BEENDET }
+
+model Abrechnung {
+  id             String          @id @default(uuid())
+  klientId       String
+  einsatzplanId  String?
+  leistungId     String
+  zeitraumVon    DateTime
+  zeitraumBis    DateTime
+  menge          Decimal
+  betrag         Decimal
+  status         AbrechnungStatus @default(ENTWURF)
+  workflowState  WorkflowState    @default(ERSTELLT)
+  freigabeVon    String?
+  freigabeDatum  DateTime?
+  createdAt      DateTime         @default(now())
+}
+
+enum AbrechnungStatus { ENTWURF GEPRUEFT FREIGEGEBEN ABGERECHNET STORNIERT }
+enum WorkflowState    { ERSTELLT EINGEREICHT GEPRUEFT GENEHMIGT ABGELEHNT EXPORTIERT }
+  </div>
+</section>
+
+<!-- ==================== 4. Modul Stammdaten ==================== -->
+<section id="s4">
+  <h2>4. Modul 1 — Klienten-Stammdaten</h2>
+
+  <h3>4.1 Funktionsumfang</h3>
+  <table>
+    <tr><th>Feature</th><th>Prio</th><th>Beschreibung</th></tr>
+    <tr><td>Klient anlegen</td><td><span class="badge b-must">MUSS</span></td><td>Formular mit Pflichtfeldern (Name, Geb.datum, SV-Nr.)</td></tr>
+    <tr><td>Klient bearbeiten</td><td><span class="badge b-must">MUSS</span></td><td>Alle Felder editierbar, Änderungshistorie</td></tr>
+    <tr><td>Suche & Filter</td><td><span class="badge b-must">MUSS</span></td><td>Volltextsuche, Filter nach Status, Kostenträger, Ort</td></tr>
+    <tr><td>Klient-Übersicht (360°)</td><td><span class="badge b-must">MUSS</span></td><td>Tabs: Stammdaten, Intake, Einsätze, Berichte, Abrechnung</td></tr>
+    <tr><td>Dokument-Upload</td><td><span class="badge b-should">SOLL</span></td><td>Dateien an Klient anhängen (Lebenslauf, Bescheide)</td></tr>
+    <tr><td>Duplikat-Erkennung</td><td><span class="badge b-nice">KANN</span></td><td>Warnung bei ähnlicher SV-Nr / Name+Geb.datum</td></tr>
+  </table>
+
+  <h3>4.2 UI-Wireframe — Klientenliste</h3>
+  <div class="screen-mock">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+      <div style="font-weight:700;font-size:1.1rem">👥 Klienten</div>
+      <div style="display:flex;gap:8px">
+        <div class="field" style="flex:none;width:250px"><span>🔍 Suche</span>Name, SV-Nr, …</div>
+        <div style="background:var(--accent);color:#fff;padding:8px 16px;border-radius:6px;font-size:.85rem;font-weight:600;cursor:pointer">+ Neuer Klient</div>
+      </div>
+    </div>
+    <table style="font-size:.82rem">
+      <tr><th>Name</th><th>Geb.datum</th><th>SV-Nr.</th><th>Status</th><th>Kostenträger</th><th>Aktionen</th></tr>
+      <tr><td>Müller, Maria</td><td>15.03.1985</td><td>12 150385 M 123</td><td><span class="tag" style="background:#c8e6c9;color:#2e7d32">Aktiv</span></td><td>Jobcenter Berlin</td><td>👁️ ✏️</td></tr>
+      <tr><td>Schmidt, Thomas</td><td>22.07.1990</td><td>45 220790 S 456</td><td><span class="tag" style="background:#c8e6c9;color:#2e7d32">Aktiv</span></td><td>Agentur f. Arbeit</td><td>👁️ ✏️</td></tr>
+      <tr><td>Weber, Anna</td><td>01.12.1978</td><td>78 011278 W 789</td><td><span class="tag" style="background:#fff9c4;color:#f57f17">Inaktiv</span></td><td>DRV Bund</td><td>👁️ ✏️</td></tr>
+    </table>
+    <div style="text-align:right;font-size:.75rem;color:var(--muted);margin-top:8px">Seite 1 von 12 · 285 Klienten</div>
+  </div>
+
+  <h3>4.3 UI-Wireframe — Klient-Detailansicht (360°)</h3>
+  <div class="screen-mock">
+    <div style="font-weight:700;font-size:1rem;margin-bottom:12px">Müller, Maria — 360°-Ansicht</div>
+    <div style="display:flex;gap:4px;margin-bottom:14px">
+      <div style="background:var(--accent);color:#fff;padding:6px 14px;border-radius:6px 6px 0 0;font-size:.8rem;font-weight:600">Stammdaten</div>
+      <div style="background:#e8eaf6;padding:6px 14px;border-radius:6px 6px 0 0;font-size:.8rem">Intake</div>
+      <div style="background:#e8eaf6;padding:6px 14px;border-radius:6px 6px 0 0;font-size:.8rem">Einsätze</div>
+      <div style="background:#e8eaf6;padding:6px 14px;border-radius:6px 6px 0 0;font-size:.8rem">Berichte</div>
+      <div style="background:#e8eaf6;padding:6px 14px;border-radius:6px 6px 0 0;font-size:.8rem">Abrechnung</div>
+      <div style="background:#e8eaf6;padding:6px 14px;border-radius:6px 6px 0 0;font-size:.8rem">Dokumente</div>
+    </div>
+    <div class="field-row">
+      <div class="field"><span>Vorname</span>Maria</div>
+      <div class="field"><span>Nachname</span>Müller</div>
+      <div class="field"><span>Geburtsdatum</span>15.03.1985</div>
+      <div class="field"><span>Geschlecht</span>Weiblich</div>
+    </div>
+    <div class="field-row">
+      <div class="field"><span>SV-Nummer</span>12 150385 M 123</div>
+      <div class="field"><span>Telefon</span>+49 170 1234567</div>
+      <div class="field"><span>E-Mail</span>maria.mueller@mail.de</div>
+    </div>
+    <div class="field-row">
+      <div class="field" style="flex:2"><span>Adresse</span>Berliner Str. 42, 10115 Berlin</div>
+      <div class="field"><span>Kostenträger</span>Jobcenter Berlin Mitte</div>
+    </div>
+  </div>
+
+  <h3>4.4 Validierungsregeln</h3>
+  <table>
+    <tr><th>Feld</th><th>Regel</th><th>Fehlermeldung</th></tr>
+    <tr><td>vorname / nachname</td><td>Min. 2 Zeichen, nur Buchstaben/Bindestr.</td><td>„Bitte gültigen Namen eingeben"</td></tr>
+    <tr><td>geburtsdatum</td><td>In Vergangenheit, Alter 14–120</td><td>„Ungültiges Geburtsdatum"</td></tr>
+    <tr><td>svNummer</td><td>Regex: <code>\d{2}\s\d{6}\s[A-Z]\s\d{3}</code></td><td>„SV-Nummer ungültig (Format: XX XXXXXX X XXX)"</td></tr>
+    <tr><td>email</td><td>RFC 5322 konform (optional)</td><td>„Ungültige E-Mail-Adresse"</td></tr>
+    <tr><td>telefon</td><td>E.164 Format (optional)</td><td>„Ungültige Telefonnummer"</td></tr>
+  </table>
+</section>
+
+<!-- ==================== 5. Arbeitsplatz ==================== -->
+<section id="s5">
+  <h2>5. Modul 2 — Arbeitsplatz</h2>
+
+  <h3>5.1 Funktionsumfang</h3>
+  <table>
+    <tr><th>Feature</th><th>Prio</th><th>Beschreibung</th></tr>
+    <tr><td>Arbeitsplatz anlegen</td><td><span class="badge b-must">MUSS</span></td><td>Bezeichnung, Standort, Kapazität, Ansprechpartner</td></tr>
+    <tr><td>Kapazitäts-Dashboard</td><td><span class="badge b-should">SOLL</span></td><td>Belegte / freie Plätze pro Standort (visuell)</td></tr>
+    <tr><td>Zuordnung zu Berufsbildern</td><td><span class="badge b-should">SOLL</span></td><td>Welche Berufsbilder an einem Arbeitsplatz möglich sind</td></tr>
+    <tr><td>Auslastungsbericht</td><td><span class="badge b-nice">KANN</span></td><td>Historische Auslastung als Chart</td></tr>
+  </table>
+
+  <h3>5.2 UI-Wireframe — Kapazitäts-Dashboard</h3>
+  <div class="screen-mock">
+    <div style="font-weight:700;font-size:1rem;margin-bottom:12px">🏢 Arbeitsplätze — Kapazitätsübersicht</div>
+    <div style="display:flex;flex-wrap:wrap;gap:12px">
+      <div class="card-inner" style="flex:1;min-width:200px">
+        <h4 style="font-size:.9rem">Holzwerkstatt</h4>
+        <div style="background:#e0e0e0;border-radius:4px;height:22px;margin:6px 0;overflow:hidden">
+          <div style="background:#66bb6a;height:100%;width:75%;border-radius:4px"></div>
+        </div>
+        <div style="font-size:.78rem;color:var(--muted)">12 / 16 belegt · <strong>4 frei</strong></div>
+      </div>
+      <div class="card-inner" style="flex:1;min-width:200px">
+        <h4 style="font-size:.9rem">Metallwerkstatt</h4>
+        <div style="background:#e0e0e0;border-radius:4px;height:22px;margin:6px 0;overflow:hidden">
+          <div style="background:#ffa726;height:100%;width:90%;border-radius:4px"></div>
+        </div>
+        <div style="font-size:.78rem;color:var(--muted)">9 / 10 belegt · <strong>1 frei</strong></div>
+      </div>
+      <div class="card-inner" style="flex:1;min-width:200px">
+        <h4 style="font-size:.9rem">Büro / IT</h4>
+        <div style="background:#e0e0e0;border-radius:4px;height:22px;margin:6px 0;overflow:hidden">
+          <div style="background:#42a5f5;height:100%;width:50%;border-radius:4px"></div>
+        </div>
+        <div style="font-size:.78rem;color:var(--muted)">4 / 8 belegt · <strong>4 frei</strong></div>
+      </div>
+      <div class="card-inner" style="flex:1;min-width:200px">
+        <h4 style="font-size:.9rem">Gastronomie</h4>
+        <div style="background:#e0e0e0;border-radius:4px;height:22px;margin:6px 0;overflow:hidden">
+          <div style="background:#ef5350;height:100%;width:100%;border-radius:4px"></div>
+        </div>
+        <div style="font-size:.78rem;color:var(--muted)">6 / 6 belegt · <strong style="color:#ef5350">voll</strong></div>
+      </div>
+    </div>
+  </div>
+
+  <h3>5.3 Datenstruktur</h3>
+  <table>
+    <tr><th>Feld</th><th>Typ</th><th>Pflicht</th><th>Beschreibung</th></tr>
+    <tr><td>bezeichnung</td><td>String</td><td>✅</td><td>Name des Arbeitsplatzes</td></tr>
+    <tr><td>standort</td><td>String</td><td>✅</td><td>Physischer Standort / Gebäude</td></tr>
+    <tr><td>kapazitaet</td><td>Int</td><td>✅</td><td>Max. Anzahl Klienten</td></tr>
+    <tr><td>ansprechpartner</td><td>String</td><td>❌</td><td>Kontaktperson vor Ort</td></tr>
+    <tr><td>kontakt</td><td>String</td><td>❌</td><td>Telefon/Email</td></tr>
+    <tr><td>berufsbilder</td><td>Relation[]</td><td>❌</td><td>Zugeordnete Berufsbilder</td></tr>
+    <tr><td>aktiv</td><td>Boolean</td><td>✅</td><td>Ob der Platz verfügbar ist</td></tr>
+  </table>
+</section>
+
+<!-- ==================== 6. Intake ==================== -->
+<section id="s6">
+  <h2>6. Modul 3 — Intake</h2>
+
+  <h3>6.1 Intake-Prozess (Workflow)</h3>
+  <div class="workflow">
+    <div class="wf-step">📥 Neuer Intake</div>
+    <div class="wf-arrow">→</div>
+    <div class="wf-step">📝 Checkliste<br>ausfüllen</div>
+    <div class="wf-arrow">→</div>
+    <div class="wf-step">🔍 Daten<br>prüfen</div>
+    <div class="wf-arrow">→</div>
+    <div class="wf-step">✅ Intake<br>abschliessen</div>
+    <div class="wf-arrow">→</div>
+    <div class="wf-step">📋 Einsatz<br>planen</div>
+  </div>
+
+  <h3>6.2 Funktionsumfang</h3>
+  <table>
+    <tr><th>Feature</th><th>Prio</th><th>Beschreibung</th></tr>
+    <tr><td>Intake starten</td><td><span class="badge b-must">MUSS</span></td><td>Neuen Klient anlegen oder bestehenden auswählen</td></tr>
+    <tr><td>Checkliste</td><td><span class="badge b-must">MUSS</span></td><td>Konfigurierbare Prüfpunkte (Dokumente, Gespräch, etc.)</td></tr>
+    <tr><td>Zuweiser erfassen</td><td><span class="badge b-should">SOLL</span></td><td>Wer hat den Klienten zugewiesen (Jobcenter, AA, etc.)</td></tr>
+    <tr><td>Notizen</td><td><span class="badge b-must">MUSS</span></td><td>Freitext-Notizen zum Erstgespräch</td></tr>
+    <tr><td>Status-Tracking</td><td><span class="badge b-must">MUSS</span></td><td>OFFEN → IN_BEARBEITUNG → ABGESCHLOSSEN</td></tr>
+    <tr><td>Auto-Benachrichtigung</td><td><span class="badge b-nice">KANN</span></td><td>E-Mail an Einsatzplaner bei Abschluss</td></tr>
+  </table>
+
+  <h3>6.3 UI-Wireframe — Intake-Formular</h3>
+  <div class="screen-mock">
+    <div style="font-weight:700;font-size:1rem;margin-bottom:12px">📥 Intake — Müller, Maria</div>
+    <div style="font-size:.82rem;color:var(--muted);margin-bottom:12px">Status: <span class="tag" style="background:#bbdefb;color:var(--accent)">In Bearbeitung</span> · Erstellt: 02.05.2026 · Bearbeiter: Frau Schmidt</div>
+    <h4 style="margin-top:16px;font-size:.9rem">✅ Checkliste</h4>
+    <div style="margin:10px 0;font-size:.85rem">
+      <div style="margin-bottom:6px">☑️ Personalausweis / Pass vorhanden</div>
+      <div style="margin-bottom:6px">☑️ Zuweisungsbescheid erhalten</div>
+      <div style="margin-bottom:6px">☑️ Erstgespräch durchgeführt</div>
+      <div style="margin-bottom:6px">⬜ Gesundheitsnachweis ausstehend</div>
+      <div style="margin-bottom:6px">⬜ Lebenslauf / Qualifikationen erfasst</div>
+    </div>
+    <div class="field-row" style="margin-top:14px">
+      <div class="field" style="flex:2;min-height:60px"><span>Notizen</span>Frau Müller bringt Erfahrung im Bereich Holzverarbeitung mit. Gesundheitsnachweis wird nachgereicht bis 10.05.</div>
+    </div>
+    <div style="display:flex;gap:8px;margin-top:14px">
+      <div style="background:var(--accent);color:#fff;padding:8px 18px;border-radius:6px;font-size:.85rem;font-weight:600">💾 Speichern</div>
+      <div style="background:var(--success);color:#fff;padding:8px 18px;border-radius:6px;font-size:.85rem;font-weight:600">✅ Abschliessen</div>
+    </div>
+  </div>
+</section>
+
+<!-- ==================== 7. Einsatzplanung ==================== -->
+<section id="s7">
+  <h2>7. Modul 4 — Einsatzplanung Klient</h2>
+
+  <h3>7.1 Funktionsumfang</h3>
+  <table>
+    <tr><th>Feature</th><th>Prio</th><th>Beschreibung</th></tr>
+    <tr><td>Einsatz planen</td><td><span class="badge b-must">MUSS</span></td><td>Klient ↔ Arbeitsplatz ↔ Berufsbild zuordnen</td></tr>
+    <tr><td>Zeitraum & Stunden</td><td><span class="badge b-must">MUSS</span></td><td>Start/Ende, Wochenstunden definieren</td></tr>
+    <tr><td>Kalenderansicht</td><td><span class="badge b-should">SOLL</span></td><td>Gantt-ähnliche Darstellung aller Einsätze</td></tr>
+    <tr><td>Kapazitätsprüfung</td><td><span class="badge b-must">MUSS</span></td><td>Warnung bei Überbelegung eines Arbeitsplatzes</td></tr>
+    <tr><td>Status-Workflow</td><td><span class="badge b-must">MUSS</span></td><td>GEPLANT → AKTIV → PAUSIERT → BEENDET</td></tr>
+    <tr><td>Drag & Drop</td><td><span class="badge b-nice">KANN</span></td><td>Einsätze im Kalender per Drag&Drop verschieben</td></tr>
+  </table>
+
+  <h3>7.2 Planungs-Workflow</h3>
+  <div class="workflow">
+    <div class="wf-step" style="background:#e8f5e9;border-color:#2e7d32">📋 Intake<br>abgeschlossen</div>
+    <div class="wf-arrow">→</div>
+    <div class="wf-step">🏢 Arbeitsplatz<br>auswählen</div>
+    <div class="wf-arrow">→</div>
+    <div class="wf-step">🎯 Berufsbild<br>zuordnen</div>
+    <div class="wf-arrow">→</div>
+    <div class="wf-step">📅 Zeitraum<br>festlegen</div>
+    <div class="wf-arrow">→</div>
+    <div class="wf-step" style="background:#e8f5e9;border-color:#2e7d32">✅ Einsatz<br>aktivieren</div>
+  </div>
+
+  <h3>7.3 UI-Wireframe — Kalenderansicht</h3>
+  <div class="screen-mock">
+    <div style="font-weight:700;font-size:1rem;margin-bottom:12px">📅 Einsatzplanung — Mai 2026</div>
+    <div style="font-size:.78rem;margin-bottom:12px;color:var(--muted)">Ansicht: <strong style="text-decoration:underline">Kalender</strong> · Liste · Gantt</div>
+    <table style="font-size:.78rem">
+      <tr><th style="width:140px">Klient</th><th>Mo 04</th><th>Di 05</th><th>Mi 06</th><th>Do 07</th><th>Fr 08</th></tr>
+      <tr>
+        <td>Müller, Maria</td>
+        <td colspan="5" style="background:#c8e6c9;text-align:center;font-weight:600;border-radius:4px">Holzwerkstatt · 30h/Wo</td>
+      </tr>
+      <tr>
+        <td>Schmidt, Thomas</td>
+        <td colspan="3" style="background:#bbdefb;text-align:center;font-weight:600;border-radius:4px">Büro/IT · 20h/Wo</td>
+        <td colspan="2" style="background:#f5f5f5;text-align:center;color:#999">—</td>
+      </tr>
+      <tr>
+        <td>Weber, Anna</td>
+        <td colspan="5" style="background:#fff9c4;text-align:center;font-weight:600;border-radius:4px">Gastronomie · 35h/Wo <span style="color:#e65100">⚠️ Pausiert</span></td>
+      </tr>
+    </table>
+  </div>
+
+  <h3>7.4 Geschäftsregeln</h3>
+  <ul>
+    <li>Ein Klient kann <strong>max. 1 aktiven Einsatz</strong> gleichzeitig haben</li>
+    <li>Der Arbeitsplatz darf nicht überbucht werden (<code>belegte_plaetze &lt; kapazitaet</code>)</li>
+    <li>Einsätze können nur für Klienten mit Status <code>AKTIV</code> und abgeschlossenem Intake erstellt werden</li>
+    <li>Bei Statuswechsel → BEENDET wird automatisch ein Abschlussbericht angefordert</li>
+  </ul>
+</section>
+
+<!-- ==================== 8. Berufsbilder ==================== -->
+<section id="s8">
+  <h2>8. Modul 5 — Berufsbilder</h2>
+
+  <h3>8.1 Funktionsumfang</h3>
+  <table>
+    <tr><th>Feature</th><th>Prio</th><th>Beschreibung</th></tr>
+    <tr><td>Berufsbild-Katalog</td><td><span class="badge b-should">SOLL</span></td><td>Verwaltung aller verfügbaren Berufsbilder</td></tr>
+    <tr><td>Kompetenzprofil</td><td><span class="badge b-should">SOLL</span></td><td>Anforderungen und Kompetenzen je Berufsbild (Tags)</td></tr>
+    <tr><td>Matching</td><td><span class="badge b-nice">KANN</span></td><td>Klienten-Kompetenzen ↔ Berufsbild-Anforderungen abgleichen</td></tr>
+    <tr><td>Zuordnung zu Arbeitsplätzen</td><td><span class="badge b-should">SOLL</span></td><td>Welche Berufsbilder an welchem Arbeitsplatz möglich</td></tr>
+  </table>
+
+  <h3>8.2 Datenstruktur</h3>
+  <table>
+    <tr><th>Feld</th><th>Typ</th><th>Beispiel</th></tr>
+    <tr><td>bezeichnung</td><td>String</td><td>„Tischler/in"</td></tr>
+    <tr><td>branche</td><td>Enum</td><td>HANDWERK, IT, GASTRONOMIE, BUERO, SOZIALES</td></tr>
+    <tr><td>anforderungen</td><td>Text</td><td>„Körperliche Belastbarkeit, räumliches Denken"</td></tr>
+    <tr><td>kompetenzen</td><td>JSON[]</td><td>["Holzbearbeitung", "Maschinenkenntnisse", "Teamarbeit"]</td></tr>
+    <tr><td>beschreibung</td><td>Text</td><td>Ausführliche Beschreibung des Berufsfeldes</td></tr>
+  </table>
+</section>
+
+<!-- ==================== 9. Berichtswesen ==================== -->
+<section id="s9">
+  <h2>9. Modul 6 — Berichtswesen</h2>
+
+  <h3>9.1 Template-basierte Berichte</h3>
+  <p>Das Berichtswesen nutzt <strong>vordefinierte Templates</strong> (DOCX/HTML), in denen Platzhalter automatisch mit Klient-/Einsatzdaten befüllt werden.</p>
+
+  <h3>9.2 Funktionsumfang</h3>
+  <table>
+    <tr><th>Feature</th><th>Prio</th><th>Beschreibung</th></tr>
+    <tr><td>Template-Verwaltung</td><td><span class="badge b-must">MUSS</span></td><td>DOCX-Templates hochladen/verwalten (Admin)</td></tr>
+    <tr><td>Bericht erstellen</td><td><span class="badge b-must">MUSS</span></td><td>Template auswählen → Daten automatisch befüllen → manuell ergänzen</td></tr>
+    <tr><td>PDF-Export</td><td><span class="badge b-must">MUSS</span></td><td>Fertigen Bericht als PDF herunterladen</td></tr>
+    <tr><td>DOCX-Export</td><td><span class="badge b-should">SOLL</span></td><td>Als Word-Dokument exportieren</td></tr>
+    <tr><td>Berichtshistorie</td><td><span class="badge b-must">MUSS</span></td><td>Alle Berichte je Klient chronologisch einsehbar</td></tr>
+    <tr><td>Platzhalter-Bibliothek</td><td><span class="badge b-should">SOLL</span></td><td>Übersicht aller verfügbaren Platzhalter-Variablen</td></tr>
+  </table>
+
+  <h3>9.3 Template-Platzhalter</h3>
+  <table>
+    <tr><th>Platzhalter</th><th>Quelle</th><th>Beispielwert</th></tr>
+    <tr><td><code>{{klient.vorname}}</code></td><td>Klient</td><td>Maria</td></tr>
+    <tr><td><code>{{klient.nachname}}</code></td><td>Klient</td><td>Müller</td></tr>
+    <tr><td><code>{{klient.geburtsdatum}}</code></td><td>Klient</td><td>15.03.1985</td></tr>
+    <tr><td><code>{{klient.svNummer}}</code></td><td>Klient</td><td>12 150385 M 123</td></tr>
+    <tr><td><code>{{einsatz.arbeitsplatz}}</code></td><td>Einsatzplan</td><td>Holzwerkstatt</td></tr>
+    <tr><td><code>{{einsatz.berufsbild}}</code></td><td>Einsatzplan</td><td>Tischler/in</td></tr>
+    <tr><td><code>{{einsatz.zeitraum}}</code></td><td>Einsatzplan</td><td>01.05.2026 – 31.07.2026</td></tr>
+    <tr><td><code>{{einsatz.stundenWoche}}</code></td><td>Einsatzplan</td><td>30</td></tr>
+    <tr><td><code>{{bericht.datum}}</code></td><td>System</td><td>04.05.2026</td></tr>
+    <tr><td><code>{{bericht.ersteller}}</code></td><td>Benutzer</td><td>Frau Schmidt</td></tr>
+    <tr><td><code>{{kostentraeger.name}}</code></td><td>Kostenträger</td><td>Jobcenter Berlin Mitte</td></tr>
+  </table>
+
+  <h3>9.4 Standard-Berichtsvorlagen</h3>
+  <div class="grid-2">
+    <div class="card-inner">
+      <h4>📄 Eingliederungsbericht</h4>
+      <p style="font-size:.85rem;color:var(--muted)">Monatlicher Fortschrittsbericht an den Kostenträger</p>
+      <div style="font-size:.78rem;margin-top:6px"><span class="tag">klient.*</span><span class="tag">einsatz.*</span><span class="tag">freitext.fortschritt</span><span class="tag">freitext.ziele</span></div>
+    </div>
+    <div class="card-inner">
+      <h4>📄 Abschlussbericht</h4>
+      <p style="font-size:.85rem;color:var(--muted)">Bericht bei Beendigung eines Einsatzes</p>
+      <div style="font-size:.78rem;margin-top:6px"><span class="tag">klient.*</span><span class="tag">einsatz.*</span><span class="tag">freitext.ergebnis</span><span class="tag">freitext.empfehlung</span></div>
+    </div>
+    <div class="card-inner">
+      <h4>📄 Intake-Protokoll</h4>
+      <p style="font-size:.85rem;color:var(--muted)">Dokumentation des Erstgesprächs</p>
+      <div style="font-size:.78rem;margin-top:6px"><span class="tag">klient.*</span><span class="tag">intake.*</span><span class="tag">checkliste.*</span></div>
+    </div>
+    <div class="card-inner">
+      <h4>📄 Anwesenheitsbericht</h4>
+      <p style="font-size:.85rem;color:var(--muted)">Monatliche Anwesenheitsübersicht</p>
+      <div style="font-size:.78rem;margin-top:6px"><span class="tag">klient.*</span><span class="tag">einsatz.*</span><span class="tag">anwesenheit.tabelle</span></div>
+    </div>
+  </div>
+</section>
+
+<!-- ==================== 10. Abrechnungsmodul ==================== -->
+<section id="s10">
+  <h2>10. Modul 7 — Abrechnungsmodul</h2>
+
+  <h3>10.1 Abrechnungs-Workflow</h3>
+  <div class="workflow">
+    <div class="wf-step">📝 Entwurf<br>erstellen</div>
+    <div class="wf-arrow">→</div>
+    <div class="wf-step">📤 Einreichen</div>
+    <div class="wf-arrow">→</div>
+    <div class="wf-step">🔍 Prüfung<br>(Buchhalter)</div>
+    <div class="wf-arrow">→</div>
+    <div class="wf-step">✅ Genehmigung<br>(Teamleitung)</div>
+    <div class="wf-arrow">→</div>
+    <div class="wf-step" style="background:#e8f5e9;border-color:#2e7d32">📊 Export /<br>Abrechnung</div>
+  </div>
+
+  <h3>10.2 Workflow-Status-Übergänge</h3>
+  <div class="diagram">
+                     ┌──────────┐
+                     │ ERSTELLT │
+                     └────┬─────┘
+                          │ einreichen()
+                          ▼
+                   ┌──────────────┐
+                   │ EINGEREICHT  │
+                   └──────┬───────┘
+                          │ prüfen()
+                    ┌─────┴──────┐
+                    ▼            ▼
+             ┌──────────┐ ┌───────────┐
+             │ GEPRÜFT  │ │ ABGELEHNT │◄── zurück an Ersteller
+             └────┬─────┘ └───────────┘
+                  │ genehmigen()
+            ┌─────┴──────┐
+            ▼            ▼
+     ┌───────────┐ ┌───────────┐
+     │ GENEHMIGT │ │ ABGELEHNT │
+     └─────┬─────┘ └───────────┘
+           │ exportieren()
+           ▼
+     ┌───────────┐
+     │ EXPORTIERT│ → CSV/DATEV-Export
+     └───────────┘
+  </div>
+
+  <h3>10.3 Funktionsumfang</h3>
+  <table>
+    <tr><th>Feature</th><th>Prio</th><th>Beschreibung</th></tr>
+    <tr><td>Abrechnung erstellen</td><td><span class="badge b-must">MUSS</span></td><td>Klient + Leistung + Zeitraum + Menge → Betrag</td></tr>
+    <tr><td>Leistungskatalog</td><td><span class="badge b-must">MUSS</span></td><td>Verwaltung aller abrechenbaren Leistungen mit Preisen</td></tr>
+    <tr><td>Mehrstufige Freigabe</td><td><span class="badge b-must">MUSS</span></td><td>Workflow: Erstellen → Prüfen → Genehmigen</td></tr>
+    <tr><td>Ablehnungsgrund</td><td><span class="badge b-must">MUSS</span></td><td>Pflichtfeld bei Ablehnung</td></tr>
+    <tr><td>Sammelabrechnung</td><td><span class="badge b-should">SOLL</span></td><td>Mehrere Klienten / Leistungen zusammenfassen</td></tr>
+    <tr><td>DATEV-Export</td><td><span class="badge b-should">SOLL</span></td><td>CSV-Export im DATEV-kompatiblen Format</td></tr>
+    <tr><td>Stornierung</td><td><span class="badge b-must">MUSS</span></td><td>Abrechnung stornieren mit Audit-Trail</td></tr>
+    <tr><td>Fälligkeitsüberwachung</td><td><span class="badge b-nice">KANN</span></td><td>Warnung bei überfälligen Abrechnungen</td></tr>
+  </table>
+
+  <h3>10.4 UI-Wireframe — Abrechnungsliste</h3>
+  <div class="screen-mock">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+      <div style="font-weight:700;font-size:1rem">💰 Abrechnungen</div>
+      <div style="display:flex;gap:8px">
+        <div class="field" style="flex:none;width:130px"><span>Status</span>Alle ▾</div>
+        <div class="field" style="flex:none;width:150px"><span>Zeitraum</span>Mai 2026 ▾</div>
+        <div style="background:var(--accent);color:#fff;padding:8px 16px;border-radius:6px;font-size:.85rem;font-weight:600">+ Neue Abrechnung</div>
+      </div>
+    </div>
+    <table style="font-size:.8rem">
+      <tr><th>Nr.</th><th>Klient</th><th>Leistung</th><th>Zeitraum</th><th>Betrag</th><th>Status</th><th>Aktion</th></tr>
+      <tr><td>ABR-2026-0042</td><td>Müller, Maria</td><td>Berufliche Eingliederung</td><td>01.05 – 31.05</td><td style="text-align:right">2.450,00 €</td><td><span class="tag" style="background:#c8e6c9;color:#2e7d32">Genehmigt</span></td><td>📤</td></tr>
+      <tr><td>ABR-2026-0043</td><td>Schmidt, Thomas</td><td>Qualifizierung IT</td><td>01.05 – 31.05</td><td style="text-align:right">1.800,00 €</td><td><span class="tag" style="background:#bbdefb;color:var(--accent)">Geprüft</span></td><td>✅ ❌</td></tr>
+      <tr><td>ABR-2026-0044</td><td>Weber, Anna</td><td>Berufliche Eingliederung</td><td>01.05 – 15.05</td><td style="text-align:right">1.225,00 €</td><td><span class="tag" style="background:#fff9c4;color:#f57f17">Eingereicht</span></td><td>🔍</td></tr>
+    </table>
+  </div>
+
+  <h3>10.5 Automatische Betragsberechnung</h3>
+  <div class="api-box">
+<span style="color:#80cbc4">// Berechnungslogik</span>
+
+function berechneBetrag(leistung: Leistung, menge: number): number {
+  return leistung.preisProEinheit * menge;
+}
+
+<span style="color:#80cbc4">// Beispiele</span>
+// Leistung: "Berufliche Eingliederung" · 98,00 €/Tag · 25 Tage = 2.450,00 €
+// Leistung: "Qualifizierung IT"       · 90,00 €/Tag · 20 Tage = 1.800,00 €
+
+<span style="color:#80cbc4">// Einheiten</span>
+enum Einheit { TAG STUNDE MONAT PAUSCHALE }
+  </div>
+</section>
+
+<!-- ==================== 11. Workflow-Engine ==================== -->
+<section id="s11">
+  <h2>11. Workflow-Engine</h2>
+
+  <h3>11.1 State-Machine-Konzept</h3>
+  <p>Die Workflow-Engine basiert auf einer <strong>generischen State-Machine</strong>, die für verschiedene Module konfiguriert werden kann.</p>
+
+  <div class="api-box">
+<span style="color:#80cbc4">// Workflow-Definition (Konfigurierbar pro Modul)</span>
+
+interface WorkflowDefinition {
+  name: string;                    <span style="color:#80cbc4">// z.B. "abrechnung_freigabe"</span>
+  states: WorkflowState[];         <span style="color:#80cbc4">// Alle möglichen Zustände</span>
+  transitions: Transition[];       <span style="color:#80cbc4">// Erlaubte Übergänge</span>
+  initialState: string;
+  finalStates: string[];
+}
+
+interface Transition {
+  from: string;                    <span style="color:#80cbc4">// Ausgangszustand</span>
+  to: string;                      <span style="color:#80cbc4">// Zielzustand</span>
+  action: string;                  <span style="color:#80cbc4">// z.B. "einreichen", "genehmigen"</span>
+  requiredRole: Role[];            <span style="color:#80cbc4">// Wer darf die Aktion ausführen</span>
+  requiredFields?: string[];       <span style="color:#80cbc4">// Pflichtfelder (z.B. Ablehnungsgrund)</span>
+  hooks?: {
+    before?: (ctx) => Promise;     <span style="color:#80cbc4">// Vor-Prüfung (Validierung)</span>
+    after?: (ctx) => Promise;      <span style="color:#80cbc4">// Nach-Aktion (Benachrichtigung, Log)</span>
+  };
+}
+
+<span style="color:#80cbc4">// Beispiel: Abrechnungs-Workflow</span>
+const abrechnungWorkflow: WorkflowDefinition = {
+  name: "abrechnung_freigabe",
+  states: ["ERSTELLT","EINGEREICHT","GEPRUEFT","GENEHMIGT","ABGELEHNT","EXPORTIERT"],
+  initialState: "ERSTELLT",
+  finalStates: ["EXPORTIERT", "STORNIERT"],
+  transitions: [
+    { from: "ERSTELLT",     to: "EINGEREICHT", action: "einreichen",  requiredRole: ["FALLMANAGER"] },
+    { from: "EINGEREICHT",  to: "GEPRUEFT",    action: "pruefen",     requiredRole: ["BUCHHALTER"] },
+    { from: "EINGEREICHT",  to: "ABGELEHNT",   action: "ablehnen",    requiredRole: ["BUCHHALTER"],
+      requiredFields: ["ablehnungsgrund"] },
+    { from: "GEPRUEFT",     to: "GENEHMIGT",   action: "genehmigen",  requiredRole: ["TEAMLEITUNG"] },
+    { from: "GEPRUEFT",     to: "ABGELEHNT",   action: "ablehnen",    requiredRole: ["TEAMLEITUNG"],
+      requiredFields: ["ablehnungsgrund"] },
+    { from: "GENEHMIGT",    to: "EXPORTIERT",   action: "exportieren", requiredRole: ["BUCHHALTER"] },
+    { from: "ABGELEHNT",    to: "ERSTELLT",     action: "ueberarbeiten", requiredRole: ["FALLMANAGER"] },
+  ]
+};
+  </div>
+
+  <h3>11.2 Audit-Log</h3>
+  <p>Jeder Workflow-Übergang wird protokolliert:</p>
+  <table>
+    <tr><th>Feld</th><th>Beschreibung</th></tr>
+    <tr><td>timestamp</td><td>Zeitpunkt der Aktion</td></tr>
+    <tr><td>entity_type</td><td>Welche Entität (Abrechnung, Intake, …)</td></tr>
+    <tr><td>entity_id</td><td>ID des betroffenen Datensatzes</td></tr>
+    <tr><td>from_state</td><td>Alter Zustand</td></tr>
+    <tr><td>to_state</td><td>Neuer Zustand</td></tr>
+    <tr><td>action</td><td>Ausgeführte Aktion</td></tr>
+    <tr><td>user_id</td><td>Wer die Aktion ausgeführt hat</td></tr>
+    <tr><td>kommentar</td><td>Optionaler Kommentar / Ablehnungsgrund</td></tr>
+  </table>
+</section>
+
+<!-- ==================== 12. API-Spezifikation ==================== -->
+<section id="s12">
+  <h2>12. API-Spezifikation (REST)</h2>
+
+  <h3>12.1 Klienten</h3>
+  <div class="api-box">
+<span class="method get">GET</span>    /api/v1/klienten                    <span style="color:#80cbc4">— Liste (paginiert, filterbar)</span>
+<span class="method get">GET</span>    /api/v1/klienten/:id                 <span style="color:#80cbc4">— Einzelner Klient (360°-Daten)</span>
+<span class="method post">POST</span>   /api/v1/klienten                    <span style="color:#80cbc4">— Klient anlegen</span>
+<span class="method put">PUT</span>    /api/v1/klienten/:id                 <span style="color:#80cbc4">— Klient aktualisieren</span>
+<span class="method del">DELETE</span> /api/v1/klienten/:id                 <span style="color:#80cbc4">— Klient archivieren (Soft-Delete)</span>
+<span class="method get">GET</span>    /api/v1/klienten/:id/intakes         <span style="color:#80cbc4">— Intakes eines Klienten</span>
+<span class="method get">GET</span>    /api/v1/klienten/:id/einsaetze       <span style="color:#80cbc4">— Einsätze eines Klienten</span>
+<span class="method get">GET</span>    /api/v1/klienten/:id/abrechnungen    <span style="color:#80cbc4">— Abrechnungen eines Klienten</span>
+<span class="method get">GET</span>    /api/v1/klienten/:id/berichte        <span style="color:#80cbc4">— Berichte eines Klienten</span>
+  </div>
+
+  <h3>12.2 Intake</h3>
+  <div class="api-box">
+<span class="method get">GET</span>    /api/v1/intakes                      <span style="color:#80cbc4">— Liste aller Intakes</span>
+<span class="method post">POST</span>   /api/v1/intakes                     <span style="color:#80cbc4">— Neuen Intake starten</span>
+<span class="method put">PUT</span>    /api/v1/intakes/:id                  <span style="color:#80cbc4">— Intake aktualisieren</span>
+<span class="method post">POST</span>   /api/v1/intakes/:id/abschliessen     <span style="color:#80cbc4">— Intake abschliessen</span>
+  </div>
+
+  <h3>12.3 Einsatzplanung</h3>
+  <div class="api-box">
+<span class="method get">GET</span>    /api/v1/einsatzplaene                <span style="color:#80cbc4">— Alle Einsätze (Kalender-Daten)</span>
+<span class="method post">POST</span>   /api/v1/einsatzplaene               <span style="color:#80cbc4">— Neuen Einsatz planen</span>
+<span class="method put">PUT</span>    /api/v1/einsatzplaene/:id            <span style="color:#80cbc4">— Einsatz aktualisieren</span>
+<span class="method post">POST</span>   /api/v1/einsatzplaene/:id/aktivieren <span style="color:#80cbc4">— Status → AKTIV</span>
+<span class="method post">POST</span>   /api/v1/einsatzplaene/:id/beenden    <span style="color:#80cbc4">— Status → BEENDET</span>
+  </div>
+
+  <h3>12.4 Arbeitsplätze & Berufsbilder</h3>
+  <div class="api-box">
+<span class="method get">GET</span>    /api/v1/arbeitsplaetze               <span style="color:#80cbc4">— Alle Arbeitsplätze (+ Kapazität)</span>
+<span class="method post">POST</span>   /api/v1/arbeitsplaetze              <span style="color:#80cbc4">— Arbeitsplatz anlegen</span>
+<span class="method put">PUT</span>    /api/v1/arbeitsplaetze/:id           <span style="color:#80cbc4">— Arbeitsplatz bearbeiten</span>
+<span class="method get">GET</span>    /api/v1/berufsbilder                 <span style="color:#80cbc4">— Alle Berufsbilder</span>
+<span class="method post">POST</span>   /api/v1/berufsbilder                <span style="color:#80cbc4">— Berufsbild anlegen</span>
+  </div>
+
+  <h3>12.5 Abrechnung (mit Workflow)</h3>
+  <div class="api-box">
+<span class="method get">GET</span>    /api/v1/abrechnungen                 <span style="color:#80cbc4">— Liste (filterbar nach Status)</span>
+<span class="method post">POST</span>   /api/v1/abrechnungen                <span style="color:#80cbc4">— Neue Abrechnung erstellen</span>
+<span class="method post">POST</span>   /api/v1/abrechnungen/:id/einreichen  <span style="color:#80cbc4">— Workflow: einreichen</span>
+<span class="method post">POST</span>   /api/v1/abrechnungen/:id/pruefen     <span style="color:#80cbc4">— Workflow: prüfen</span>
+<span class="method post">POST</span>   /api/v1/abrechnungen/:id/genehmigen  <span style="color:#80cbc4">— Workflow: genehmigen</span>
+<span class="method post">POST</span>   /api/v1/abrechnungen/:id/ablehnen    <span style="color:#80cbc4">— Workflow: ablehnen (+ Grund)</span>
+<span class="method post">POST</span>   /api/v1/abrechnungen/:id/exportieren <span style="color:#80cbc4">— Workflow: DATEV-Export</span>
+<span class="method post">POST</span>   /api/v1/abrechnungen/:id/stornieren  <span style="color:#80cbc4">— Stornierung mit Audit</span>
+  </div>
+
+  <h3>12.6 Berichte</h3>
+  <div class="api-box">
+<span class="method get">GET</span>    /api/v1/berichte                     <span style="color:#80cbc4">— Alle Berichte</span>
+<span class="method post">POST</span>   /api/v1/berichte                    <span style="color:#80cbc4">— Bericht aus Template erstellen</span>
+<span class="method get">GET</span>    /api/v1/berichte/:id/pdf             <span style="color:#80cbc4">— PDF-Download</span>
+<span class="method get">GET</span>    /api/v1/berichte/:id/docx            <span style="color:#80cbc4">— DOCX-Download</span>
+<span class="method get">GET</span>    /api/v1/bericht-templates            <span style="color:#80cbc4">— Verfügbare Templates</span>
+<span class="method post">POST</span>   /api/v1/bericht-templates           <span style="color:#80cbc4">— Template hochladen (Admin)</span>
+  </div>
+
+  <h3>12.7 Paginierung & Filterung (Standard)</h3>
+  <div class="api-box">
+<span style="color:#80cbc4">// Allgemeine Query-Parameter für alle Listen-Endpoints:</span>
+
+?page=1                 <span style="color:#80cbc4">— Seitennummer (default: 1)</span>
+&pageSize=25            <span style="color:#80cbc4">— Einträge pro Seite (default: 25, max: 100)</span>
+&sort=nachname          <span style="color:#80cbc4">— Sortierfeld</span>
+&order=asc              <span style="color:#80cbc4">— Sortierrichtung (asc/desc)</span>
+&search=müller          <span style="color:#80cbc4">— Volltextsuche</span>
+&status=AKTIV           <span style="color:#80cbc4">— Filterung nach Status</span>
+&von=2026-05-01         <span style="color:#80cbc4">— Zeitraum-Filter (von)</span>
+&bis=2026-05-31         <span style="color:#80cbc4">— Zeitraum-Filter (bis)</span>
+
+<span style="color:#80cbc4">// Response-Format:</span>
+{
+  "data": [...],
+  "pagination": {
+    "page": 1,
+    "pageSize": 25,
+    "totalItems": 285,
+    "totalPages": 12
+  }
+}
+  </div>
+</section>
+
+<!-- ==================== 13. RBAC ==================== -->
+<section id="s13">
+  <h2>13. Berechtigungskonzept (RBAC)</h2>
+
+  <h3>13.1 Rollen & Berechtigungen</h3>
+  <table>
+    <tr><th>Modul / Aktion</th><th>Admin</th><th>Teamleitung</th><th>Fallmanager</th><th>Einsatzplaner</th><th>Buchhalter</th></tr>
+    <tr><td>Klient anlegen/bearbeiten</td><td>✅</td><td>✅</td><td>✅</td><td>👁️</td><td>👁️</td></tr>
+    <tr><td>Intake durchführen</td><td>✅</td><td>✅</td><td>✅</td><td>❌</td><td>❌</td></tr>
+    <tr><td>Einsatz planen</td><td>✅</td><td>✅</td><td>👁️</td><td>✅</td><td>❌</td></tr>
+    <tr><td>Arbeitsplatz verwalten</td><td>✅</td><td>✅</td><td>❌</td><td>✅</td><td>❌</td></tr>
+    <tr><td>Bericht erstellen</td><td>✅</td><td>✅</td><td>✅</td><td>❌</td><td>👁️</td></tr>
+    <tr><td>Abrechnung erstellen</td><td>✅</td><td>👁️</td><td>✅</td><td>❌</td><td>✅</td></tr>
+    <tr><td>Abrechnung prüfen</td><td>✅</td><td>❌</td><td>❌</td><td>❌</td><td>✅</td></tr>
+    <tr><td>Abrechnung genehmigen</td><td>✅</td><td>✅</td><td>❌</td><td>❌</td><td>❌</td></tr>
+    <tr><td>DATEV-Export</td><td>✅</td><td>❌</td><td>❌</td><td>❌</td><td>✅</td></tr>
+    <tr><td>Template-Verwaltung</td><td>✅</td><td>❌</td><td>❌</td><td>❌</td><td>❌</td></tr>
+    <tr><td>Benutzerverwaltung</td><td>✅</td><td>❌</td><td>❌</td><td>❌</td><td>❌</td></tr>
+  </table>
+  <p style="font-size:.8rem;color:var(--muted);margin-top:8px">✅ = Vollzugriff · 👁️ = Nur Lesen · ❌ = Kein Zugriff</p>
+</section>
+
+<!-- ==================== 14. NFR ==================== -->
+<section id="s14">
+  <h2>14. Nicht-funktionale Anforderungen</h2>
+
+  <div class="grid-2">
+    <div class="card-inner">
+      <h4>⚡ Performance</h4>
+      <ul>
+        <li>Seitenladung &lt; 2 Sekunden</li>
+        <li>API-Response &lt; 500ms (95. Perzentil)</li>
+        <li>PDF-Generierung &lt; 5 Sekunden</li>
+        <li>Bis 500 gleichzeitige Benutzer</li>
+      </ul>
+    </div>
+    <div class="card-inner">
+      <h4>🔒 Sicherheit</h4>
+      <ul>
+        <li>HTTPS/TLS 1.3 überall</li>
+        <li>OWASP Top 10 Compliance</li>
+        <li>Verschlüsselung sensibler Daten (AES-256)</li>
+        <li>DSGVO-konforme Datenhaltung</li>
+        <li>Automatische Session-Timeout (30 Min.)</li>
+      </ul>
+    </div>
+    <div class="card-inner">
+      <h4>📱 Kompatibilität</h4>
+      <ul>
+        <li>Chrome, Firefox, Edge, Safari (letzte 2 Versionen)</li>
+        <li>Responsive ab 768px Breite</li>
+        <li>WCAG 2.1 AA Zugänglichkeit</li>
+      </ul>
+    </div>
+    <div class="card-inner">
+      <h4>🔄 Wartbarkeit</h4>
+      <ul>
+        <li>Automatisierte Tests (&gt;80% Coverage)</li>
+        <li>CI/CD Pipeline (GitHub Actions)</li>
+        <li>Semantic Versioning</li>
+        <li>Docker-basiertes Deployment</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<!-- ==================== 15. Roadmap ==================== -->
+<section id="s15">
+  <h2>15. Umsetzungsplan & Roadmap</h2>
+
+  <h3>15.1 Phasen-Übersicht</h3>
+  <table class="priority-table">
+    <tr><th>Phase</th><th>Zeitraum</th><th>Module</th><th>Liefergegenstände</th></tr>
+    <tr>
+      <td style="background:#e8f5e9">Phase 1<br><span style="font-size:.75rem;color:var(--muted)">MVP</span></td>
+      <td>Woche 1–6</td>
+      <td>Stammdaten, Intake, Arbeitsplatz</td>
+      <td>
+        <ul style="padding-left:16px;margin:0">
+          <li>DB-Schema + Migrationen</li>
+          <li>CRUD-APIs für Klienten, Intake, Arbeitsplatz</li>
+          <li>Frontend: Listen, Formulare, 360°-Ansicht</li>
+          <li>Auth + RBAC Grundgerüst</li>
+        </ul>
+      </td>
+    </tr>
+    <tr>
+      <td style="background:#e3f2fd">Phase 2<br><span style="font-size:.75rem;color:var(--muted)">Planung</span></td>
+      <td>Woche 7–10</td>
+      <td>Einsatzplanung, Berufsbilder</td>
+      <td>
+        <ul style="padding-left:16px;margin:0">
+          <li>Einsatzplan-Kalenderansicht</li>
+          <li>Kapazitätsprüfung</li>
+          <li>Berufsbild-Katalog</li>
+          <li>Matching-Logik</li>
+        </ul>
+      </td>
+    </tr>
+    <tr>
+      <td style="background:#fff3e0">Phase 3<br><span style="font-size:.75rem;color:var(--muted)">Berichte</span></td>
+      <td>Woche 11–14</td>
+      <td>Berichtswesen</td>
+      <td>
+        <ul style="padding-left:16px;margin:0">
+          <li>Template-Engine (docxtpl + Puppeteer)</li>
+          <li>4 Standard-Templates</li>
+          <li>PDF/DOCX-Export</li>
+          <li>Berichtshistorie</li>
+        </ul>
+      </td>
+    </tr>
+    <tr>
+      <td style="background:#fce4ec">Phase 4<br><span style="font-size:.75rem;color:var(--muted)">Abrechnung</span></td>
+      <td>Woche 15–20</td>
+      <td>Abrechnungsmodul, Workflow-Engine</td>
+      <td>
+        <ul style="padding-left:16px;margin:0">
+          <li>Workflow-Engine (State-Machine)</li>
+          <li>Abrechnungs-CRUD + Workflow</li>
+          <li>Leistungskatalog</li>
+          <li>DATEV-Export</li>
+          <li>Audit-Log</li>
+        </ul>
+      </td>
+    </tr>
+    <tr>
+      <td style="background:#f3e5f5">Phase 5<br><span style="font-size:.75rem;color:var(--muted)">Polish</span></td>
+      <td>Woche 21–24</td>
+      <td>Querschnitt</td>
+      <td>
+        <ul style="padding-left:16px;margin:0">
+          <li>Dashboard mit KPI-Widgets</li>
+          <li>E-Mail-Benachrichtigungen</li>
+          <li>Performance-Optimierung</li>
+          <li>UAT + Bugfixes</li>
+          <li>Dokumentation</li>
+        </ul>
+      </td>
+    </tr>
+  </table>
+
+  <h3>15.2 Meilensteine</h3>
+  <div class="workflow">
+    <div class="wf-step" style="background:#e8f5e9;border-color:#2e7d32">Woche 6<br>MVP Demo</div>
+    <div class="wf-arrow">→</div>
+    <div class="wf-step" style="background:#e3f2fd;border-color:var(--accent)">Woche 10<br>Planung live</div>
+    <div class="wf-arrow">→</div>
+    <div class="wf-step" style="background:#fff3e0;border-color:#e65100">Woche 14<br>Berichte live</div>
+    <div class="wf-arrow">→</div>
+    <div class="wf-step" style="background:#fce4ec;border-color:#c62828">Woche 20<br>Abrechnung live</div>
+    <div class="wf-arrow">→</div>
+    <div class="wf-step" style="background:#f3e5f5;border-color:#7b1fa2">Woche 24<br>🚀 Go-Live</div>
+  </div>
+
+  <h3>15.3 Team-Empfehlung</h3>
+  <table>
+    <tr><th>Rolle</th><th>Anzahl</th><th>Schwerpunkt</th></tr>
+    <tr><td>Projektleitung</td><td>1</td><td>Steuerung, Stakeholder-Management</td></tr>
+    <tr><td>Fullstack-Entwickler</td><td>2–3</td><td>React + Node.js + PostgreSQL</td></tr>
+    <tr><td>UX/UI Designer</td><td>1</td><td>Wireframes → Designsystem → Prototypen</td></tr>
+    <tr><td>QA / Tester</td><td>1</td><td>Testfälle, Regression, UAT-Begleitung</td></tr>
+    <tr><td>DevOps</td><td>0.5</td><td>CI/CD, Docker, Monitoring</td></tr>
+  </table>
+</section>
+
+</div>
+
+<footer>
+  <p>📋 Klientenmanagement-System — App-Spezifikation v1.0 · Erstellt mit Abacus AI Agent · Mai 2026</p>
+  <p><a href="#top" style="color:var(--accent)">⬆ Nach oben</a></p>
+</footer>
+
+</body>
+</html>

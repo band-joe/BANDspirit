@@ -1,0 +1,113 @@
+@startuml BANDspirit-Systemarchitektur
+' ============================================================================
+' BANDspirit V2 — Systemarchitekturdiagramm
+' Deployment: Docker Compose (nginx + frontend + api + postgres + redis + minio)
+' Backend: ASP.NET Core 8 (C#) | Frontend: Next.js 14 (NextAuth)
+' ============================================================================
+
+title BANDspirit V2 — Systemarchitektur
+
+skinparam backgroundColor #FFFFFF
+skinparam shadowing false
+skinparam defaultFontName "Helvetica"
+skinparam defaultFontSize 12
+skinparam roundcorner 8
+skinparam ArrowColor #37474F
+skinparam componentStyle rectangle
+
+skinparam node {
+  BackgroundColor #ECEFF1
+  BorderColor #607D8B
+}
+skinparam rectangle {
+  BackgroundColor #FFFFFF
+  BorderColor #90A4AE
+}
+skinparam database {
+  BackgroundColor #E3F2FD
+  BorderColor #1976D2
+}
+skinparam cloud {
+  BackgroundColor #FFF8E1
+  BorderColor #F9A825
+}
+skinparam actor {
+  BackgroundColor #C8E6C9
+  BorderColor #388E3C
+}
+
+' ── Akteur ──────────────────────────────────────────────────────────────────
+actor "Benutzer\n(Browser)" as User
+
+' ── Externe Dienste ─────────────────────────────────────────────────────────
+cloud "Microsoft Entra ID\n(Azure AD — SSO/OIDC)" as Entra
+cloud "Microsoft Exchange\n(SMTP — E-Mail)" as SMTP
+
+' ── Docker-Host ─────────────────────────────────────────────────────────────
+node "Docker-Host  (Docker-Netz: bandspirit-network)" as Host {
+
+  ' ── Reverse Proxy ──
+  rectangle "**nginx**  (:80)\nReverse Proxy / TLS\nX-Forwarded-For/-Proto" as Nginx #FFE0B2
+
+  ' ── Frontend ──
+  rectangle "**frontend**  (:3000)\nNext.js 14 (App Router)" as Frontend #E1F5FE {
+    component "React UI\n(Dashboard, S3, OKR, KPI ...)" as UI
+    component "NextAuth\n(Credentials + Entra ID)" as NextAuth
+    component "API-Client\n(lib/api-client.ts)" as ApiClient
+  }
+
+  ' ── Backend ──
+  rectangle "**api**  (:8080)\nASP.NET Core 8 (C#)" as Api #E8F5E9 {
+    component "Middleware-Pipeline\nForwardedHeaders · Rate-Limiter (auth: 20/60s pro IP)\nSecurityHeaders · Audit · Serilog" as Mw
+    component "REST-Controller\nAuth · Dashboard · OrgGraph · Objections" as Rest
+    component "OData-Controller\nUsers · Circles · Roles · Meetings\nProposals · OKR · KPI · FAQ · ..." as ODataC
+    component "Auth / RBAC\nJwtTokenService · RbacService\nPermissionHandler" as Auth
+    component "Services\nAuthService · KpiService · OkrService\nS3StorageService · NotificationService\nIcsService · AuditService" as Svc
+    component "EF Core\nBandSpiritDbContext" as Ef
+  }
+
+  ' ── Datenspeicher ──
+  database "**postgres**  (:5432)\nPostgreSQL 16" as PG
+  database "**redis**  (:6379)\nCache / Session" as Redis
+  database "**minio**  (:9000)\nS3-kompatibler\nObject Storage" as Minio
+}
+
+' ── Verbindungen ────────────────────────────────────────────────────────────
+User --> Nginx : HTTPS (:80)
+User ..> Entra : OIDC-Login-Redirect
+
+Nginx --> Frontend : proxy_pass\nhttp://frontend:3000
+Nginx --> Api : proxy_pass /api\nhttp://api:8080
+
+UI --> ApiClient
+ApiClient --> NextAuth : Login
+NextAuth --> Api : POST /api/auth/login\n(serverseitig)
+NextAuth ..> Entra : SSO (OIDC)
+ApiClient --> Nginx : REST/OData (Bearer JWT)
+
+Mw --> Rest
+Mw --> ODataC
+Rest --> Auth
+ODataC --> Auth
+Rest --> Svc
+ODataC --> Svc
+Auth --> Ef
+Svc --> Ef
+
+Ef --> PG : EF Core / Npgsql
+Auth --> Redis : Permission-Cache
+Svc --> Redis : Cache / Session
+Svc --> Minio : Datei-Upload/-Download (AWS SDK)
+Svc ..> SMTP : E-Mail (Passwort-Reset,\nBenachrichtigungen)
+
+' ── Legende ─────────────────────────────────────────────────────────────────
+legend right
+  |= Element |= Bedeutung |
+  | Rechteck | Docker-Container / Komponente |
+  | Zylinder | Datenspeicher |
+  | Wolke | Externer Dienst |
+  | durchgezogen | synchroner Aufruf |
+  | gestrichelt | externer/optionaler Aufruf |
+endlegend
+
+@enduml

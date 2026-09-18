@@ -1,0 +1,100 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 160 20% 97%;
+    --foreground: 170 20% 12%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 170 20% 12%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 170 20% 12%;
+
+    --primary: 173 38% 44%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 165 18% 93%;
+    --secondary-foreground: 170 20% 12%;
+
+    --muted: 165 18% 93%;
+    --muted-foreground: 170 10% 42%;
+
+    --accent: 172 40% 40%;
+    --accent-foreground: 0 0% 100%;
+
+    --destructive: 0 72% 55%;
+    --destructive-foreground: 0 0% 98%;
+
+    --border: 165 12% 87%;
+    --input: 165 12% 87%;
+    --ring: 173 38% 44%;
+
+    --radius: 0.625rem;
+    --radius-sm: calc(0.625rem - 4px);
+    --radius-lg: calc(0.625rem + 4px);
+    --radius-full: 9999px;
+
+    --spacing-xs: 4px;
+    --spacing-sm: 8px;
+    --spacing-md: 16px;
+    --spacing-lg: 24px;
+    --spacing-xl: 32px;
+    --spacing-2xl: 48px;
+    --spacing-3xl: 64px;
+
+    --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.03), 0 1px 3px 0 rgb(0 0 0 / 0.06);
+    --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.05), 0 2px 4px -2px rgb(0 0 0 / 0.05);
+    --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.07), 0 4px 6px -4px rgb(0 0 0 / 0.05);
+
+    --duration-fast: 150ms;
+    --duration-normal: 250ms;
+    --duration-slow: 350ms;
+
+    --chart-1: 173 38% 44%;
+    --chart-2: 152 42% 48%;
+    --chart-3: 35 80% 55%;
+    --chart-4: 0 72% 55%;
+    --chart-5: 200 45% 42%;
+  }
+
+  .dark {
+    --background: 170 15% 8%;
+    --foreground: 0 0% 95%;
+    --card: 170 12% 12%;
+    --card-foreground: 0 0% 95%;
+    --popover: 170 12% 12%;
+    --popover-foreground: 0 0% 95%;
+    --primary: 173 38% 50%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 170 12% 18%;
+    --secondary-foreground: 0 0% 95%;
+    --muted: 170 12% 18%;
+    --muted-foreground: 165 10% 60%;
+    --accent: 172 40% 45%;
+    --accent-foreground: 0 0% 100%;
+    --destructive: 0 63% 50%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 170 12% 22%;
+    --input: 170 12% 22%;
+    --ring: 173 38% 50%;
+    --chart-1: 173 38% 50%;
+    --chart-2: 152 42% 50%;
+    --chart-3: 35 80% 55%;
+    --chart-4: 0 72% 55%;
+    --chart-5: 200 45% 45%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+}
+
+[data-hydration-error] { display: none !important; }

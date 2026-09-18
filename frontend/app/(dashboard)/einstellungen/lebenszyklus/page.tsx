@@ -1,0 +1,280 @@
+'use client';
+
+import { useEffect, useState, useCallback } from 'react';
+import { Card, CardContent } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Switch } from '@/components/ui/switch';
+import { Textarea } from '@/components/ui/textarea';
+import {
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
+} from '@/components/ui/dialog';
+import { Plus, Edit, RefreshCw, ArrowLeft } from 'lucide-react';
+import { useSession } from 'next-auth/react';
+import { hasPermission } from '@/lib/rbac';
+import { apiClient } from '@/lib/api-client';
+import { ODataResponse } from '@/lib/odata';
+import { ApiError } from '@/lib/errors';
+import { toast } from 'sonner';
+import Link from 'next/link';
+import { motion } from 'framer-motion';
+
+/* ------------------------------------------------------------------ */
+/*  Typen                                                              */
+/* ------------------------------------------------------------------ */
+
+interface LebenszyklusPhase {
+  id: string;
+  name: string;
+  beschreibung: string | null;
+  sortOrder: number;
+  aktiv: boolean;
+  createdAt: string;
+}
+
+/* ------------------------------------------------------------------ */
+/*  Seite                                                              */
+/* ------------------------------------------------------------------ */
+
+export default function LebenszyklusPage() {
+  const { data: session } = useSession() || {};
+  const role = (session?.user as Record<string, unknown>)?.role as string ?? '';
+
+  const [phasen, setPhasen] = useState<LebenszyklusPhase[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [editingItem, setEditingItem] = useState<LebenszyklusPhase | null>(null);
+  const [form, setForm] = useState({
+    name: '',
+    beschreibung: '',
+    sortOrder: 0,
+    aktiv: true,
+  });
+  const [saving, setSaving] = useState(false);
+
+  /* ---------- Daten laden ---------- */
+
+  const loadData = useCallback(() => {
+    if (!session) return;
+    apiClient
+      .get<ODataResponse<LebenszyklusPhase>>('/odata/S3LebenszyklusPhasen?$orderby=SortOrder,Name', session)
+      .then(d => setPhasen(d.value ?? []))
+      .catch(() => toast.error('Fehler beim Laden'))
+      .finally(() => setLoading(false));
+  }, [session]);
+
+  useEffect(() => { loadData(); }, [loadData]);
+
+  /* ---------- Dialog-Helfer ---------- */
+
+  const openCreate = () => {
+    setEditingItem(null);
+    setForm({ name: '', beschreibung: '', sortOrder: (phasen.length + 1), aktiv: true });
+    setDialogOpen(true);
+  };
+
+  const openEdit = (item: LebenszyklusPhase) => {
+    setEditingItem(item);
+    setForm({
+      name: item.name,
+      beschreibung: item.beschreibung || '',
+      sortOrder: item.sortOrder,
+      aktiv: item.aktiv,
+    });
+    setDialogOpen(true);
+  };
+
+  /* ---------- Speichern ---------- */
+
+  const handleSave = async () => {
+    if (!form.name.trim()) {
+      toast.error('Name ist erforderlich');
+      return;
+    }
+    setSaving(true);
+    // camelCase – OData-Backend nutzt EnableLowerCamelCase()
+    const payload = {
+      name: form.name.trim(),
+      beschreibung: form.beschreibung.trim() || null,
+      sortOrder: form.sortOrder,
+      aktiv: form.aktiv,
+    };
+    try {
+      if (editingItem) {
+        await apiClient.patch(`/odata/S3LebenszyklusPhasen(${editingItem.id})`, payload, session);
+      } else {
+        await apiClient.post('/odata/S3LebenszyklusPhasen', payload, session);
+      }
+      toast.success(editingItem ? 'Phase aktualisiert' : 'Phase erstellt');
+      setDialogOpen(false);
+      loadData();
+    } catch (error: unknown) {
+      const msg = error instanceof ApiError ? error.message : 'Fehler beim Speichern';
+      toast.error(msg);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  /* ---------- Aktiv umschalten ---------- */
+
+  const toggleAktiv = async (item: LebenszyklusPhase) => {
+    try {
+      await apiClient.patch(`/odata/S3LebenszyklusPhasen(${item.id})`, { aktiv: !item.aktiv }, session);
+      toast.success(item.aktiv ? 'Deaktiviert' : 'Aktiviert');
+      loadData();
+    } catch (error: unknown) {
+      const msg = error instanceof ApiError ? error.message : 'Fehler beim Aktualisieren';
+      toast.error(msg);
+    }
+  };
+
+  /* ---------- Render ---------- */
+
+  const canManage = hasPermission(role, 'stammdaten:manage');
+
+  return (
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <Link href="/einstellungen/firma">
+            <Button variant="ghost" size="icon">
+              <ArrowLeft className="h-5 w-5" />
+            </Button>
+          </Link>
+          <div>
+            <h1 className="text-2xl font-bold">Lebenszyklus-Phasen</h1>
+            <p className="text-muted-foreground">Phasen des Kreis-Lebenszyklus pflegen</p>
+          </div>
+        </div>
+        {canManage && (
+          <Button onClick={openCreate}>
+            <Plus className="h-4 w-4 mr-2" />Neue Phase
+          </Button>
+        )}
+      </div>
+
+      {/* Liste */}
+      {loading ? (
+        <div className="space-y-3">
+          {[1, 2, 3].map(i => (
+            <Card key={i}><CardContent className="py-6"><div className="h-6 bg-muted animate-pulse rounded" /></CardContent></Card>
+          ))}
+        </div>
+      ) : phasen.length === 0 ? (
+        <Card>
+          <CardContent className="py-12 text-center">
+            <RefreshCw className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+            <h3 className="text-lg font-semibold mb-2">Keine Lebenszyklus-Phasen</h3>
+            <p className="text-muted-foreground">Erstellen Sie die Phasen des Kreis-Lebenszyklus.</p>
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="grid gap-3">
+          {phasen.map((item, idx) => (
+            <motion.div
+              key={item.id}
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: idx * 0.03 }}
+            >
+              <Card className={!item.aktiv ? 'opacity-60' : undefined}>
+                <CardContent className="py-4">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3 flex-1 min-w-0">
+                      <div className="p-2 rounded-lg bg-primary/10">
+                        <RefreshCw className="h-4 w-4 text-primary" />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <Badge variant="outline" className="text-xs">{item.sortOrder}</Badge>
+                          <h3 className="font-semibold">{item.name}</h3>
+                          {!item.aktiv && (
+                            <Badge variant="secondary" className="text-xs">Inaktiv</Badge>
+                          )}
+                        </div>
+                        {item.beschreibung && (
+                          <p className="text-sm text-muted-foreground mt-1">{item.beschreibung}</p>
+                        )}
+                      </div>
+                    </div>
+
+                    {canManage && (
+                      <div className="flex items-center gap-2 flex-shrink-0">
+                        <Switch
+                          checked={item.aktiv}
+                          onCheckedChange={() => toggleAktiv(item)}
+                          title={item.aktiv ? 'Deaktivieren' : 'Aktivieren'}
+                        />
+                        <Button variant="ghost" size="icon" onClick={() => openEdit(item)} title="Bearbeiten">
+                          <Edit className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+            </motion.div>
+          ))}
+        </div>
+      )}
+
+      {/* Dialog erstellen / bearbeiten */}
+      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>
+              {editingItem ? 'Phase bearbeiten' : 'Neue Phase'}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label>Name *</Label>
+              <Input
+                value={form.name}
+                onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
+                placeholder="z.B. Aktiv, In Review, Ruhend"
+              />
+            </div>
+            <div>
+              <Label>Beschreibung</Label>
+              <Textarea
+                value={form.beschreibung}
+                onChange={e => setForm(f => ({ ...f, beschreibung: e.target.value }))}
+                rows={3}
+                placeholder="Bedeutung dieser Phase"
+              />
+            </div>
+            <div>
+              <Label>Sortierreihenfolge</Label>
+              <Input
+                type="number"
+                value={form.sortOrder}
+                onChange={e => setForm(f => ({ ...f, sortOrder: parseInt(e.target.value) || 0 }))}
+              />
+            </div>
+            {editingItem && (
+              <div className="flex items-center gap-3">
+                <Switch
+                  id="aktiv"
+                  checked={form.aktiv}
+                  onCheckedChange={v => setForm(f => ({ ...f, aktiv: v }))}
+                />
+                <Label htmlFor="aktiv">Aktiv</Label>
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDialogOpen(false)}>Abbrechen</Button>
+            <Button onClick={handleSave} disabled={saving}>
+              {saving ? 'Speichern…' : editingItem ? 'Aktualisieren' : 'Erstellen'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}

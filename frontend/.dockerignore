@@ -1,0 +1,25 @@
+# ==============================================================================
+# BANDspirit — Docker Ignore
+# ==============================================================================
+
+node_modules
+.next
+.build
+.git
+.gitignore
+.env
+.env.local
+.env.docker
+*.log
+*.md
+!README.md
+docs/*.docx
+docs/*.zip
+.vscode
+.idea
+__pycache__
+*.pyc
+.pytest_cache
+.DS_Store
+docker/nginx/ssl/*.pem
+docker/nginx/ssl/*.key
