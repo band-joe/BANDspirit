@@ -92,7 +92,17 @@ export const authOptions: NextAuthOptions = {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ idToken: account.id_token }),
           });
-          if (!res.ok) return false;
+          if (!res.ok) {
+            // Grund protokollieren – NextAuth zeigt bei signIn=false nur das
+            // generische "AccessDenied" an; ohne dieses Logging ist der
+            // eigentliche Backend-Fehler (z. B. AzureAd:Enabled=false,
+            // Token-Validierung fehlgeschlagen) nicht diagnostizierbar.
+            const body = await res.text().catch(() => '');
+            console.error(
+              `Entra-Callback abgelehnt (HTTP ${res.status}): ${body}`
+            );
+            return false;
+          }
           const data = await res.json();
           // Flache Backend-Struktur: { token, userId, name, email, role, expiresAt }
           user.accessToken     = data.token;
@@ -101,7 +111,8 @@ export const authOptions: NextAuthOptions = {
           user.name            = data.name;
           user.email           = data.email;
           (user as any).role   = data.role;
-        } catch {
+        } catch (err) {
+          console.error('Entra-Callback fehlgeschlagen (Netzwerk-/Verbindungsfehler):', err);
           return false;
         }
       }

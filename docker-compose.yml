@@ -171,7 +171,10 @@ services:
 
   # ── MinIO — On-Premise S3-kompatible Object Storage ─────────────────────────
   minio:
-    image: minio/minio:latest
+    # minio/minio auf Docker Hub verlangt seit 2024 für ALLE Tags eine
+    # Authentifizierung (anonymer Pull -> 401/"pull access denied").
+    # quay.io/minio/minio ist der offizielle, weiterhin frei erreichbare Spiegel.
+    image: quay.io/minio/minio:latest
     container_name: bandspirit-minio
     restart: unless-stopped
     ports:
