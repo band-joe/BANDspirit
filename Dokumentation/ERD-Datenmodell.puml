@@ -1,0 +1,345 @@
+@startuml BANDspirit-ERD
+' ============================================================================
+' BANDspirit V2 — ERD (Entity-Relationship-Diagramm)
+' PostgreSQL 16 — abgeleitet aus Infrastructure/Data/BandSpiritDbContext.cs
+' Zeigt Primär-/Fremdschlüssel und die wichtigsten Spalten je Tabelle
+' (vollständige Spaltenlisten siehe EF-Migrationen). Alle Entitäten erben
+' ausserdem die Audit-Spalten CreatedAt/UpdatedAt/CreatedById/ChangedById/
+' DateFrom/DateTo (AuditableEntity) - hier aus Platzgründen nicht wiederholt.
+' Stand: 2026-09-21
+' ============================================================================
+
+title BANDspirit V2 — ERD (PostgreSQL, abgeleitet aus EF-Core-Modell)
+
+skinparam backgroundColor #FFFFFF
+skinparam shadowing false
+skinparam defaultFontName "Helvetica"
+skinparam defaultFontSize 11
+skinparam roundcorner 4
+skinparam ArrowColor #37474F
+skinparam linetype ortho
+
+skinparam entity {
+  BackgroundColor #FFFFFF
+  BorderColor #607D8B
+  FontSize 11
+}
+
+' ── Identität & Zugriff ──────────────────────────────────────────────────────
+entity "Users" as Users {
+  * Id : uuid <<PK>>
+  --
+  * Email : text <<unique>>
+  * EmailCanonical : text <<unique>>
+  Password : text
+  Role : text
+  RoleId : uuid <<FK>>
+  Aktiv : bool
+  EmailVerified : bool
+}
+entity "BenutzerRollen" as BenutzerRollen {
+  * Id : uuid <<PK>>
+  --
+  * Name : text <<unique>>
+  IstSystemAdmin : bool
+}
+entity "RolePermissions" as RolePermissions {
+  * Id : uuid <<PK>>
+  --
+  * Role : text
+  RoleId : uuid <<FK>>
+  * Permission : text
+  .. unique(Role, Permission) ..
+}
+entity "RefreshTokens" as RefreshTokens {
+  * Id : uuid <<PK>>
+  --
+  * Token : text <<unique>>
+  * UserId : uuid <<FK>>
+}
+entity "PasswordResetTokens" as PasswordResetTokens {
+  * Id : uuid <<PK>>
+  --
+  * Token : text <<unique>>
+  * UserId : uuid <<FK>>
+}
+
+' ── Organisation (Soziokratie 3.0) ───────────────────────────────────────────
+entity "S3Circles" as S3Circles {
+  * Id : uuid <<PK>>
+  --
+  * Name : text
+  ParentId : uuid <<FK>>
+  RootId : uuid <<FK>>
+  IsActive : bool
+  LifecyclePhase : text
+}
+entity "S3RollenDefinitionen" as S3RollenDefinitionen {
+  * Id : uuid <<PK>>
+  --
+  * Name : text
+  IsLeadLink : bool
+  Aktiv : bool
+}
+entity "S3Roles" as S3Roles {
+  * Id : uuid <<PK>>
+  --
+  * CircleId : uuid <<FK>>
+  * RollenDefinitionId : uuid <<FK>>
+  Aktiv : bool
+  .. unique(CircleId, RollenDefinitionId) ..
+}
+entity "S3PersonRoleAssignments" as S3PersonRoleAssignments {
+  * Id : uuid <<PK>>
+  --
+  * UserId : uuid <<FK>>
+  * RoleId : uuid <<FK>>
+  .. unique(UserId, RoleId) ..
+}
+entity "S3RolleKennzahlen" as S3RolleKennzahlen {
+  * Id : uuid <<PK>>
+  --
+  * RollenDefinitionId : uuid <<FK>>
+  Bezeichnung : text
+}
+entity "S3RolleDokumente" as S3RolleDokumente {
+  * Id : uuid <<PK>>
+  --
+  * RollenDefinitionId : uuid <<FK>>
+  Dateiname : text
+  StoragePfad : text
+}
+entity "S3CircleReviews" as S3CircleReviews {
+  * Id : uuid <<PK>>
+  --
+  * CircleId : uuid <<FK>>
+  Ergebnis : text
+}
+entity "S3LebenszyklusPhasen" as S3LebenszyklusPhasen {
+  * Id : uuid <<PK>>
+  --
+  * Name : text <<unique>>
+}
+entity "S3CircleLebenszyklen" as S3CircleLebenszyklen {
+  * Id : uuid <<PK>>
+  --
+  * S3CircleId : uuid <<FK>>
+  * LebenszyklusPhaseId : uuid <<FK>>
+}
+
+' ── Meetings & Governance ────────────────────────────────────────────────────
+entity "S3Meetings" as S3Meetings {
+  * Id : uuid <<PK>>
+  --
+  * CircleId : uuid <<FK>>
+  Status : text
+}
+entity "S3MeetingAgendaItems" as S3MeetingAgendaItems {
+  * Id : uuid <<PK>>
+  --
+  * MeetingId : uuid <<FK>>
+  Titel : text
+}
+entity "S3Proposals" as S3Proposals {
+  * Id : uuid <<PK>>
+  --
+  * CircleId : uuid <<FK>>
+  MeetingId : uuid <<FK>>
+  Status : text
+}
+entity "S3Objections" as S3Objections {
+  * Id : uuid <<PK>>
+  --
+  * ProposalId : uuid <<FK>>
+  UserId : uuid <<FK>>
+  Status : text
+}
+entity "S3Decisions" as S3Decisions {
+  * Id : uuid <<PK>>
+  --
+  * ProposalId : uuid <<FK, unique>>
+}
+
+' ── Spannungen ────────────────────────────────────────────────────────────────
+entity "S3Drivers" as S3Drivers {
+  * Id : uuid <<PK>>
+  --
+  * CircleId : uuid <<FK>>
+  Prioritaet : text
+  Status : text
+}
+entity "SpannungWorkItems" as SpannungWorkItems {
+  * Id : uuid <<PK>>
+  --
+  * DriverId : uuid <<FK>>
+  ZugewiesenAnId : uuid <<FK>>
+  Status : text
+}
+
+' ── OKR & KPI ─────────────────────────────────────────────────────────────────
+entity "OkrZyklen" as OkrZyklen {
+  * Id : uuid <<PK>>
+  --
+  * Titel : text
+}
+entity "OKRs" as OKRs {
+  * Id : uuid <<PK>>
+  --
+  * Titel : text
+  ZyklusId : uuid <<FK>>
+  CircleId : uuid <<FK>>
+  Status : text
+}
+entity "KeyResults" as KeyResults {
+  * Id : uuid <<PK>>
+  --
+  * OkrId : uuid <<FK>>
+  Status : text
+}
+entity "KpiDefinitions" as KpiDefinitions {
+  * Id : uuid <<PK>>
+  --
+  * Name : text
+  CircleId : uuid <<FK>>
+  Zielwert : double
+}
+entity "KpiMeasurements" as KpiMeasurements {
+  * Id : uuid <<PK>>
+  --
+  * KpiDefinitionId : uuid <<FK>>
+  Status : text
+}
+
+' ── Hilfe & Support ───────────────────────────────────────────────────────────
+entity "SupportTickets" as SupportTickets {
+  * Id : uuid <<PK>>
+  --
+  ErstellerId : uuid <<FK>>
+  Status : text
+  Prioritaet : text
+}
+entity "FAQs" as FAQs {
+  * Id : uuid <<PK>>
+  --
+  Kategorie : text
+}
+
+' ── BI-Kompass & BI-Guide ─────────────────────────────────────────────────────
+entity "BIKompassVersionen" as BIKompassVersionen {
+  * Id : uuid <<PK>>
+  --
+  * Titel : text
+  Version : int
+}
+entity "BiGuideKategorien" as BiGuideKategorien {
+  * Id : uuid <<PK>>
+  --
+  * Name : text
+}
+entity "BIGuideNews" as BIGuideNews {
+  * Id : uuid <<PK>>
+  --
+  * Titel : text
+  Kategorie : text
+}
+
+' ── Stammdaten, Firma, Mail-Verteiler, Audit ─────────────────────────────────
+entity "Stammdaten" as Stammdaten {
+  * Id : uuid <<PK>>
+  --
+  * Kategorie : text
+  * Code : text
+  .. unique(Kategorie, Code) ..
+}
+entity "Firmas" as Firmas <<Singleton>> {
+  * Id : text <<PK = "singleton">>
+  --
+  Firmenname : text
+}
+entity "MailVerteiler" as MailVerteiler {
+  * Id : uuid <<PK>>
+  --
+  * Name : text <<unique>>
+  S3CircleId : uuid <<FK>>
+  S3RollenDefinitionId : uuid <<FK>>
+}
+entity "MailVerteilerBenutzer" as MailVerteilerBenutzer {
+  * Id : uuid <<PK>>
+  --
+  * MailVerteilerId : uuid <<FK>>
+  * UserId : uuid <<FK>>
+  .. unique(MailVerteilerId, UserId) ..
+}
+entity "AppLogs" as AppLogs {
+  * Id : uuid <<PK>>
+  --
+  Modul : text
+  Aktion : text
+  EntityId : text
+}
+
+' ── Beziehungen: Identität & Zugriff ─────────────────────────────────────────
+BenutzerRollen ||--o{ Users : RoleId
+BenutzerRollen ||--o{ RolePermissions : RoleId
+Users ||--o{ RefreshTokens
+Users ||--o{ PasswordResetTokens
+
+' ── Beziehungen: Organisation ────────────────────────────────────────────────
+S3Circles ||--o{ S3Circles : ParentId / RootId
+S3Circles ||--o{ S3Roles
+S3RollenDefinitionen ||--o{ S3Roles
+S3RollenDefinitionen ||--o{ S3RolleKennzahlen
+S3RollenDefinitionen ||--o{ S3RolleDokumente
+S3Roles ||--o{ S3PersonRoleAssignments
+Users ||--o{ S3PersonRoleAssignments
+S3Circles ||--o{ S3CircleReviews
+S3Circles ||--o{ S3CircleLebenszyklen
+S3LebenszyklusPhasen ||--o{ S3CircleLebenszyklen
+
+' ── Beziehungen: Meetings & Governance ───────────────────────────────────────
+S3Circles ||--o{ S3Meetings
+S3Meetings ||--o{ S3MeetingAgendaItems
+S3Circles ||--o{ S3Proposals
+S3Meetings |o--o{ S3Proposals
+S3Proposals ||--o{ S3Objections
+Users |o--o{ S3Objections
+S3Proposals ||--o| S3Decisions
+
+' ── Beziehungen: Spannungen ───────────────────────────────────────────────────
+S3Circles ||--o{ S3Drivers
+S3Drivers ||--o{ SpannungWorkItems
+Users |o--o{ SpannungWorkItems : ZugewiesenAnId
+
+' ── Beziehungen: OKR & KPI ────────────────────────────────────────────────────
+OkrZyklen |o--o{ OKRs
+S3Circles |o--o{ OKRs : "optional (NULL = global)"
+S3Circles |o--o{ KpiDefinitions : "optional (NULL = global)"
+OKRs ||--o{ KeyResults
+KpiDefinitions ||--o{ KpiMeasurements
+
+' ── Beziehungen: Hilfe & Support ──────────────────────────────────────────────
+Users |o--o{ SupportTickets : ErstellerId
+
+' ── Beziehungen: BI-Guide ─────────────────────────────────────────────────────
+BiGuideKategorien |o--o{ BIGuideNews
+
+' ── Beziehungen: Mail-Verteiler ───────────────────────────────────────────────
+MailVerteiler ||--o{ MailVerteilerBenutzer
+Users ||--o{ MailVerteilerBenutzer
+S3Circles |o..o{ MailVerteiler : "optional Ziel"
+S3RollenDefinitionen |o..o{ MailVerteiler : "optional Ziel"
+
+' ── Legende ─────────────────────────────────────────────────────────────────
+legend right
+  |= Symbol |= Bedeutung |
+  | <<PK>> | Primärschlüssel |
+  | <<FK>> | Fremdschlüssel |
+  | <<unique>> | Unique-Constraint/-Index |
+  | ||--o{ | 1 : 0..n (Pflichtbeziehung) |
+  | \|o--o{ | 0..1 : 0..n (optionale Beziehung) |
+  | ||--o\| | 1 : 0..1 |
+  Alle Entitäten erben zusätzlich CreatedAt/UpdatedAt/CreatedById/
+  ChangedById/DateFrom/DateTo von AuditableEntity (hier ausgeblendet).
+endlegend
+
+@enduml
