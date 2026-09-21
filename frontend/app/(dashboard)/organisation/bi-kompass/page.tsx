@@ -47,10 +47,16 @@ interface BIKompassVersion {
   titel: string;
   inhalt?: string;
   aenderungen?: string | null;
-  gueltigAb: string;
+  // UI-26-Fix: "gueltigAb" ist das bestehende, generische DateFrom-Feld
+  // (fachliche Gültigkeit) - kein separates Backend-Feld nötig.
+  dateFrom: string | null;
   isAktiv: boolean;
   createdAt: string;
-  createdBy: { id: string; name: string };
+  // UI-26-Fix: Backend liefert kein verschachteltes createdBy-Objekt (das gab
+  // es nie) - nur die rohe ID. Name wird clientseitig über die Users-Liste
+  // aufgelöst (siehe erstellerName-Helfer), mit gracefully-degradierendem
+  // Fallback für Betrachter ohne user:read-Berechtigung.
+  createdById: string | null;
 }
 
 interface Chapter {
@@ -199,6 +205,13 @@ export default function BIKompassPage() {
   // Expanded chapters
   const [collapsedChapters, setCollapsedChapters] = useState<Set<string>>(new Set());
 
+  // UI-26-Fix: Für die clientseitige Auflösung des Ersteller-Namens (kein
+  // createdBy-Objekt vom Backend). Best effort - Betrachter ohne user:read
+  // sehen dann einfach "Unbekannt" statt eines Absturzes.
+  const [users, setUsers] = useState<{ id: string; name: string }[]>([]);
+  const erstellerName = (createdById: string | null) =>
+    users.find((u) => u.id === createdById)?.name ?? 'Unbekannt';
+
   const userRole = (session?.user as { role?: string })?.role;
   const canManage = userRole ? hasPermission(userRole, 'biguide:manage') : false;
 
@@ -244,6 +257,16 @@ export default function BIKompassPage() {
   useEffect(() => {
     Promise.all([loadAktiveVersion(), loadVersionen()]).finally(() => setLoading(false));
   }, [loadAktiveVersion, loadVersionen]);
+
+  useEffect(() => {
+    if (!session) return;
+    // Best effort - schlägt für Betrachter ohne user:read fehl, dann bleibt
+    // erstellerName() beim Fallback "Unbekannt" statt abzustürzen.
+    apiClient
+      .get<ODataResponse<{ id: string; name: string }>>('/odata/Users?$select=id,name', session)
+      .then((data) => setUsers(data.value ?? []))
+      .catch(() => setUsers([]));
+  }, [session]);
 
   // ── Chapter editing ──────────────────────
   const startChapterEdit = (chapterId: string) => {
@@ -392,7 +415,10 @@ export default function BIKompassPage() {
           titel: aktiveVersion?.titel || 'BI-Kompass der Zusammenarbeit',
           inhalt,
           aenderungen: publishAenderungen,
-          gueltigAb: publishGueltigAb,
+          // UI-26-Fix: Backend-Feld heisst dateFrom (DateTimeOffset) - ein
+          // reines Datum ("2026-09-21") ohne Zeit-/Zonenanteil lässt sich
+          // nicht zuverlässig als DateTimeOffset binden.
+          dateFrom: publishGueltigAb ? `${publishGueltigAb}T00:00:00Z` : null,
         },
         session
       );
@@ -455,7 +481,7 @@ export default function BIKompassPage() {
           <Badge variant={previewVersion.isAktiv ? 'default' : 'secondary'} className={previewVersion.isAktiv ? 'bg-[#3e8f88]' : ''}>
             {previewVersion.isAktiv ? 'Aktive Version' : 'Archiviert'}
           </Badge>
-          <span className="text-sm text-muted-foreground">{previewVersion.version} – {formatDate(previewVersion.gueltigAb)}</span>
+          <span className="text-sm text-muted-foreground">{previewVersion.version} – {previewVersion.dateFrom ? formatDate(previewVersion.dateFrom) : '–'}</span>
         </div>
         {previewVersion.aenderungen && (
           <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl">
@@ -621,10 +647,10 @@ export default function BIKompassPage() {
                   <FileText className="h-3.5 w-3.5 text-[#3e8f88]" /> {aktiveVersion!.version}
                 </span>
                 <span className="flex items-center gap-1.5 bg-white/70 px-3 py-1 rounded-full">
-                  <Clock className="h-3.5 w-3.5 text-[#3e8f88]" /> Gültig ab {formatDate(aktiveVersion!.gueltigAb)}
+                  <Clock className="h-3.5 w-3.5 text-[#3e8f88]" /> Gültig ab {aktiveVersion!.dateFrom ? formatDate(aktiveVersion!.dateFrom) : '–'}
                 </span>
                 <span className="flex items-center gap-1.5 bg-white/70 px-3 py-1 rounded-full">
-                  <User className="h-3.5 w-3.5 text-[#3e8f88]" /> {aktiveVersion!.createdBy.name}
+                  <User className="h-3.5 w-3.5 text-[#3e8f88]" /> {erstellerName(aktiveVersion!.createdById)}
                 </span>
               </div>
               )}
@@ -826,7 +852,7 @@ export default function BIKompassPage() {
                         )}
                       </div>
                       <div className="text-xs text-muted-foreground mt-0.5">
-                        {formatDate(v.gueltigAb)} · {v.createdBy.name}
+                        {v.dateFrom ? formatDate(v.dateFrom) : '–'} · {erstellerName(v.createdById)}
                       </div>
                       {v.aenderungen && <p className="text-xs text-gray-500 mt-1 truncate">{v.aenderungen}</p>}
                     </div>
