@@ -36,11 +36,24 @@ public class User : AuditableEntity
 
     /// <summary>
     /// Rolle des Benutzers (Name einer <see cref="BenutzerRolle"/>, z. B. "User").
-    /// Wird in der Datenbank als String gespeichert; die Verknüpfung zur
-    /// Benutzerrolle sowie zu Berechtigungen erfolgt über den Namen.
+    /// Wird weiterhin als String gespeichert und ist die von Autorisierung
+    /// (JWT-Claim, RbacService, Policy-Checks, Frontend) gelesene Quelle -
+    /// DB-02-Fix: Referenzstabilität kommt jetzt aber von <see cref="RoleId"/>
+    /// (feste FK zu <see cref="BenutzerRolle"/>). Eine Umbenennung der
+    /// Benutzerrolle aktualisiert diesen String transaktional über RoleId
+    /// nach (siehe BenutzerRollenController.Patch), statt ihn stillschweigend
+    /// veralten zu lassen.
     /// </summary>
     [Required]
     public string Role { get; set; } = BenutzerRollenNamen.User;
+
+    /// <summary>
+    /// DB-02-Fix: Feste, umbenennungssichere Referenz auf die Benutzerrolle.
+    /// Kann bei Altdaten vorübergehend null sein, bis die Backfill-Migration
+    /// bzw. ein erneutes Speichern sie auflöst; neue/aktualisierte Datensätze
+    /// setzen sie serverseitig aus dem angegebenen Rollennamen.
+    /// </summary>
+    public Guid? RoleId { get; set; }
 
     /// <summary>Gibt an, ob der Benutzer aktiv ist.</summary>
     public bool Aktiv { get; set; } = true;

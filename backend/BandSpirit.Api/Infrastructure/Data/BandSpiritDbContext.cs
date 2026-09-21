@@ -111,6 +111,12 @@ public class BandSpiritDbContext : DbContext
             e.HasIndex(u => u.Role);
             // DB-13: Unique-Index auf normalisierte E-Mail (case-insensitive Duplikatsprüfung)
             e.HasIndex(u => u.EmailCanonical).IsUnique();
+            // DB-02-Fix: Feste, umbenennungssichere Referenz zusätzlich zum
+            // (weiterhin von der Autorisierung gelesenen) Role-Namen. Restrict,
+            // da Benutzerrollen ohnehin nie hart gelöscht werden können
+            // (BenutzerRollenController.Delete lehnt das explizit ab).
+            e.HasIndex(u => u.RoleId);
+            e.HasOne<BenutzerRolle>().WithMany().HasForeignKey(u => u.RoleId).OnDelete(DeleteBehavior.Restrict);
         });
 
         // ── BenutzerRolle (Applikationsrolle, Unique-Name) ─────────────────
@@ -144,6 +150,9 @@ public class BandSpiritDbContext : DbContext
         modelBuilder.Entity<RolePermission>(e =>
         {
             e.HasIndex(r => new { r.Role, r.Permission }).IsUnique();
+            // DB-02-Fix: siehe Kommentar auf User.RoleId.
+            e.HasIndex(r => r.RoleId);
+            e.HasOne<BenutzerRolle>().WithMany().HasForeignKey(r => r.RoleId).OnDelete(DeleteBehavior.Restrict);
         });
 
         // ── Firma (Singleton, string-Id) ──────────────────────────────────

@@ -119,11 +119,14 @@ public class RolePermissionsController : ControllerBase
         _db.RolePermissions.RemoveRange(vorhandene);
 
         // Neue Einträge erstellen
+        // DB-02-Fix: RoleId (stabile Referenz auf die bereits oben geladene
+        // und validierte Benutzerrolle) zusätzlich zum Namen setzen.
         foreach (var permission in request.Permissions.Distinct())
         {
             _db.RolePermissions.Add(new RolePermission
             {
                 Role = roleName,
+                RoleId = rolle.Id,
                 Permission = permission
             });
         }

@@ -90,7 +90,7 @@ public class UsersController : ODataController
             return BadRequest(ModelState);
         }
         // Rolle muss eine gültige, aktive Benutzerrolle sein.
-        var rollenFehler = await ValidiereRolleAsync(dto.Role);
+        var (rollenFehler, roleId) = await ValidiereRolleAsync(dto.Role);
         if (rollenFehler is not null)
         {
             return BadRequest(new { fehler = rollenFehler });
@@ -106,6 +106,7 @@ public class UsersController : ODataController
             Name = dto.Name,
             Email = dto.Email,
             Role = dto.Role,
+            RoleId = roleId,
             Aktiv = dto.Aktiv,
             AbacusPersonalnummer = dto.AbacusPersonalnummer,
             PortraetPfad = dto.PortraetPfad,
@@ -170,12 +171,13 @@ public class UsersController : ODataController
         // Falls die Rolle geändert wurde, gegen den Benutzerrollen-Katalog prüfen.
         if (geaenderteFelder.Contains(nameof(UserDto.Role)))
         {
-            var rollenFehler = await ValidiereRolleAsync(patched.Role);
+            var (rollenFehler, roleId) = await ValidiereRolleAsync(patched.Role);
             if (rollenFehler is not null)
             {
                 return BadRequest(new { fehler = rollenFehler });
             }
             user.Role = patched.Role;
+            user.RoleId = roleId;
         }
         // Falls das Passwort geändert wurde, erneut hashen.
         if (geaenderteFelder.Contains(nameof(UserDto.Password)) && !string.IsNullOrEmpty(patched.Password))
@@ -246,19 +248,24 @@ public class UsersController : ODataController
     };
 
     /// <summary>
-    /// Prüft, ob der übergebene Rollenname einer aktiven Benutzerrolle entspricht.
-    /// Liefert bei Fehler eine Meldung, sonst null.
+    /// Prüft, ob der übergebene Rollenname einer aktiven Benutzerrolle entspricht,
+    /// und löst dabei (DB-02-Fix) gleich deren stabile ID auf. Liefert bei Fehler
+    /// eine Meldung (RoleId dann null), sonst (null, RoleId) - ein unbekannter
+    /// oder inaktiver Rollenname wird also explizit abgelehnt statt stillschweigend
+    /// als loser String übernommen zu werden.
     /// </summary>
-    private async Task<string?> ValidiereRolleAsync(string? role)
+    private async Task<(string? Fehler, Guid? RoleId)> ValidiereRolleAsync(string? role)
     {
         if (string.IsNullOrWhiteSpace(role))
         {
-            return "Es muss eine Rolle angegeben werden.";
+            return ("Es muss eine Rolle angegeben werden.", null);
         }
-        var existiertAktiv = await _db.BenutzerRollen
-            .AnyAsync(r => r.Name == role && r.Aktiv);
-        return existiertAktiv
-            ? null
-            : $"Die Rolle '{role}' ist keine gültige oder aktive Benutzerrolle.";
+        var gefundeneId = await _db.BenutzerRollen
+            .Where(r => r.Name == role && r.Aktiv)
+            .Select(r => (Guid?)r.Id)
+            .FirstOrDefaultAsync();
+        return gefundeneId is null
+            ? ($"Die Rolle '{role}' ist keine gültige oder aktive Benutzerrolle.", null)
+            : (null, gefundeneId);
     }
 }

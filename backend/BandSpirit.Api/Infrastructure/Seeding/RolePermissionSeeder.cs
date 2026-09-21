@@ -32,11 +32,19 @@ public static class RolePermissionSeeder
             })
         };
 
+        // DB-02-Fix: Stabile RoleId je Rollenname auflösen (DataSeeder legt den
+        // BenutzerRollen-Katalog inzwischen VOR diesem Seeder an, siehe
+        // Program.cs). Bleibt null, falls die Katalogzeile ausnahmsweise fehlt -
+        // RbacService liest weiterhin den Namen, das ist also kein Hard-Fail.
+        var roleIdsByName = await db.BenutzerRollen
+            .ToDictionaryAsync(r => r.Name, r => r.Id);
+
         foreach (var (role, permissions) in zuordnungen)
         {
+            Guid? roleId = roleIdsByName.TryGetValue(role, out var gefundeneId) ? gefundeneId : null;
             foreach (var permission in permissions)
             {
-                db.RolePermissions.Add(new RolePermission { Role = role, Permission = permission });
+                db.RolePermissions.Add(new RolePermission { Role = role, RoleId = roleId, Permission = permission });
             }
         }
 
