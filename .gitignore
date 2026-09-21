@@ -15,3 +15,8 @@ logs/
 
 # Windows-Metadaten (z. B. bei aus dem Browser heruntergeladenen Dateien)
 *:Zone.Identifier
+
+# Datenbank-Backups und Einmal-Migrationsskripte enthalten echte Personendaten
+# (Namen, E-Mails) - dürfen nie versioniert werden.
+backups/
+scripts/*.sql
