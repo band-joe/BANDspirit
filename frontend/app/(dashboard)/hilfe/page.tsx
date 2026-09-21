@@ -24,7 +24,7 @@ import {
 import {
   Plus, Ticket, HelpCircle, Search, Filter, ChevronDown, ChevronRight,
   AlertCircle, Clock, CheckCircle2, MessageSquare, Send, Loader2, Pencil, Trash2,
-  SearchIcon, ExternalLink, Users, ClipboardList, Building2, FileText, Receipt, Contact, Calendar, Target, LifeBuoy, Newspaper, CircleDot, BookOpen, UserCog, Briefcase,
+  SearchIcon, ExternalLink, Newspaper,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import Link from 'next/link';
@@ -779,40 +779,21 @@ function FAQForm({ faq, onSuccess, onCancel }: { faq: FAQ | null; onSuccess: () 
 // SUCHE TAB — Globale Suche über alle BANDspirit-Daten
 // ============================================================
 
+// UI-09-Fix: Nur noch Typen, die die Suche tatsächlich liefern kann. Die
+// übrigen Einträge (Klient, Kontakt, Intake, Arbeitsplatz, Berufsbild,
+// Bericht, Massnahme, Gespräch, Einsatzplan, Abrechnung, Benutzer, Kreis)
+// stammten aus einer anderen Produktvorlage (Klientenmanagement) und
+// bezeichnen Entitäten, die es in BANDspirit gar nicht gibt bzw. die diese
+// Suche nie durchsucht hat - ihr blosses Vorhandensein täuschte einen
+// breiteren Suchumfang vor, als tatsächlich implementiert ist.
 const TYP_ICONS: Record<string, React.ReactNode> = {
-  'Klient': <Users className="h-4 w-4 text-blue-600" />,
-  'Kontakt': <Contact className="h-4 w-4 text-indigo-600" />,
-  'Intake': <ClipboardList className="h-4 w-4 text-amber-600" />,
-  'Arbeitsplatz': <Building2 className="h-4 w-4 text-purple-600" />,
-  'Berufsbild': <Briefcase className="h-4 w-4 text-teal-600" />,
-  'Bericht': <FileText className="h-4 w-4 text-green-600" />,
-  'Massnahme': <Target className="h-4 w-4 text-rose-600" />,
-  'Gespräch': <Calendar className="h-4 w-4 text-sky-600" />,
-  'Einsatzplan': <Calendar className="h-4 w-4 text-emerald-600" />,
-  'Abrechnung': <Receipt className="h-4 w-4 text-orange-600" />,
-  'Benutzer': <UserCog className="h-4 w-4 text-gray-600" />,
   'BI-Guide': <Newspaper className="h-4 w-4 text-primary" />,
-  'FAQ': <HelpCircle className="h-4 w-4 text-violet-600" />,
   'Ticket': <Ticket className="h-4 w-4 text-amber-600" />,
-  'Kreis': <CircleDot className="h-4 w-4 text-primary" />,
 };
 
 const TYP_BADGES: Record<string, string> = {
-  'Klient': 'bg-blue-50 text-blue-700 border-blue-200',
-  'Kontakt': 'bg-indigo-50 text-indigo-700 border-indigo-200',
-  'Intake': 'bg-amber-50 text-amber-700 border-amber-200',
-  'Arbeitsplatz': 'bg-purple-50 text-purple-700 border-purple-200',
-  'Berufsbild': 'bg-teal-50 text-teal-700 border-teal-200',
-  'Bericht': 'bg-green-50 text-green-700 border-green-200',
-  'Massnahme': 'bg-rose-50 text-rose-700 border-rose-200',
-  'Gespräch': 'bg-sky-50 text-sky-700 border-sky-200',
-  'Einsatzplan': 'bg-emerald-50 text-emerald-700 border-emerald-200',
-  'Abrechnung': 'bg-orange-50 text-orange-700 border-orange-200',
-  'Benutzer': 'bg-gray-50 text-gray-700 border-gray-200',
   'BI-Guide': 'bg-primary/10 text-primary border-primary/20',
-  'FAQ': 'bg-violet-50 text-violet-700 border-violet-200',
   'Ticket': 'bg-amber-50 text-amber-700 border-amber-200',
-  'Kreis': 'bg-primary/10 text-primary border-primary/20',
 };
 
 interface SucheResult {
@@ -907,13 +888,17 @@ function SucheTab() {
         <CardContent className="p-5">
           <div className="flex flex-col gap-3">
             <p className="text-sm text-muted-foreground">
-              Durchsuchen Sie alle Informationen in BANDspirit — Klienten, Kontakte, Intakes, Berichte, Gespräche, Einsätze und mehr.
+              {/* UI-09-Fix: Beschreibung entsprach nicht der tatsächlichen Suche (durchsuchte
+                  zuvor u. a. "Klienten, Kontakte, Intakes" - Begriffe aus einem anderen
+                  Produkt, die es in BANDspirit gar nicht gibt). Jetzt wird nur beworben,
+                  was tatsächlich durchsucht wird. */}
+              Durchsucht die Titel der BI-Guide-Neuigkeiten und der Support-Tickets.
             </p>
             <div className="flex gap-2">
               <div className="relative flex-1">
                 <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
-                  placeholder="Suchbegriff eingeben... (z.B. Name, Firma, Standort, Stichwort)"
+                  placeholder="Titel-Stichwort eingeben (News oder Ticket)…"
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
                   onKeyDown={handleKeyDown}
