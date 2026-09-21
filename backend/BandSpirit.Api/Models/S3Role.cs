@@ -28,10 +28,4 @@ public class S3Role : AuditableEntity
 
     /// <summary>Zuweisungen von Personen zu dieser Rolle (Navigation).</summary>
     public ICollection<S3PersonRoleAssignment> Assignments { get; set; } = new List<S3PersonRoleAssignment>();
-
-    /// <summary>Kennzahlen der Rolle (Navigation).</summary>
-    public ICollection<S3RolleKennzahl> Kennzahlen { get; set; } = new List<S3RolleKennzahl>();
-
-    /// <summary>Dokumente der Rolle (Navigation).</summary>
-    public ICollection<S3RolleDokument> Dokumente { get; set; } = new List<S3RolleDokument>();
 }

@@ -237,31 +237,22 @@ public class BandSpiritDbContext : DbContext
         });
 
         // ── S3Rolle Detail-Tabs (Kennzahlen, Dokumente) ──────────────────
-        // DB-04-Fix: RoleId/RollenDefinitionId sind beide nullable (Instanz-
-        // ODER Definitions-Eigentümer). Ohne Constraint konnten Zeilen mit
-        // BEIDEN oder KEINEM Owner entstehen (z. B. via generischem OData-PATCH
-        // auf S3RolleKennzahlen, das beide Felder clientseitig überschreiben
-        // liess). CHECK erzwingt jetzt "genau einer von beiden".
+        // Dead-Code-Bereinigung (im Rahmen der DB-05-Prüfung entdeckt): die
+        // ehemals dual-ownership-fähigen RoleId-Spalten (Instanz-Eigentümer)
+        // wurden entfernt - der zugehörige instanzbezogene REST-Controller
+        // (/api/rollen/{roleId}/...) wurde von keiner Frontend-Stelle je
+        // aufgerufen, nur die Rollendefinition-Variante ist in Gebrauch.
+        // RollenDefinitionId ist jetzt der einzige, verpflichtende Owner.
         modelBuilder.Entity<S3RolleKennzahl>(e =>
         {
-            e.HasIndex(k => k.RoleId);
             e.HasIndex(k => k.RollenDefinitionId);
-            e.HasOne(k => k.Role).WithMany(r => r.Kennzahlen).HasForeignKey(k => k.RoleId).OnDelete(DeleteBehavior.Cascade);
             e.HasOne(k => k.RollenDefinition).WithMany().HasForeignKey(k => k.RollenDefinitionId).OnDelete(DeleteBehavior.Cascade);
-            e.ToTable(t => t.HasCheckConstraint(
-                "CK_S3RolleKennzahlen_GenauEinOwner",
-                "(\"RoleId\" IS NOT NULL) <> (\"RollenDefinitionId\" IS NOT NULL)"));
         });
 
         modelBuilder.Entity<S3RolleDokument>(e =>
         {
-            e.HasIndex(d => d.RoleId);
             e.HasIndex(d => d.RollenDefinitionId);
-            e.HasOne(d => d.Role).WithMany(r => r.Dokumente).HasForeignKey(d => d.RoleId).OnDelete(DeleteBehavior.Cascade);
             e.HasOne(d => d.RollenDefinition).WithMany().HasForeignKey(d => d.RollenDefinitionId).OnDelete(DeleteBehavior.Cascade);
-            e.ToTable(t => t.HasCheckConstraint(
-                "CK_S3RolleDokumente_GenauEinOwner",
-                "(\"RoleId\" IS NOT NULL) <> (\"RollenDefinitionId\" IS NOT NULL)"));
         });
 
         // ── S3PersonRoleAssignment (Unique: [UserId, RoleId]) ─────────────
