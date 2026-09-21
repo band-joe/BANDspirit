@@ -199,13 +199,14 @@ function TicketsTab({ canManage, userId, role }: { canManage: boolean; userId: s
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
               placeholder="Tickets durchsuchen..."
+              aria-label="Tickets durchsuchen"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="pl-9"
             />
           </div>
           <Select value={filterStatus} onValueChange={setFilterStatus}>
-            <SelectTrigger className="w-[160px]">
+            <SelectTrigger className="w-[160px]" aria-label="Nach Status filtern">
               <Filter className="h-4 w-4 mr-2" />
               <SelectValue placeholder="Status" />
             </SelectTrigger>
@@ -217,7 +218,7 @@ function TicketsTab({ canManage, userId, role }: { canManage: boolean; userId: s
             </SelectContent>
           </Select>
           <Select value={filterPrioritaet} onValueChange={setFilterPrioritaet}>
-            <SelectTrigger className="w-[160px]">
+            <SelectTrigger className="w-[160px]" aria-label="Nach Priorität filtern">
               <SelectValue placeholder="Priorität" />
             </SelectTrigger>
             <SelectContent>
@@ -410,9 +411,9 @@ function TicketDetail({ ticket, canManage, onClose, onUpdated }: {
           <div className="space-y-3 border-t pt-4">
             <div className="flex gap-3">
               <div className="flex-1">
-                <label className="text-sm font-medium mb-1 block">Status</label>
+                <label htmlFor="ticket-status" className="text-sm font-medium mb-1 block">Status</label>
                 <Select value={status} onValueChange={(v: any) => { setStatus(v); setSaveError(''); }}>
-                  <SelectTrigger>
+                  <SelectTrigger id="ticket-status">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -424,8 +425,9 @@ function TicketDetail({ ticket, canManage, onClose, onUpdated }: {
               </div>
             </div>
             <div>
-              <label className="text-sm font-medium mb-1 block">Antwort</label>
+              <label htmlFor="ticket-antwort" className="text-sm font-medium mb-1 block">Antwort</label>
               <Textarea
+                id="ticket-antwort"
                 value={antwort}
                 onChange={(e) => { setAntwort(e.target.value); setSaveError(''); }}
                 placeholder="Antwort an den Ersteller..."
@@ -491,14 +493,14 @@ function CreateTicketForm({ onSuccess, onCancel }: { onSuccess: () => void; onCa
       </DialogHeader>
       <div className="space-y-4 py-4">
         <div>
-          <label className="text-sm font-medium mb-1 block">Titel *</label>
-          <Input value={titel} onChange={(e) => { setTitel(e.target.value); setFooterError(''); }} placeholder="Kurze Zusammenfassung des Problems" />
+          <label htmlFor="ticket-titel" className="text-sm font-medium mb-1 block">Titel *</label>
+          <Input id="ticket-titel" value={titel} onChange={(e) => { setTitel(e.target.value); setFooterError(''); }} placeholder="Kurze Zusammenfassung des Problems" />
         </div>
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <label className="text-sm font-medium mb-1 block">Priorität</label>
+            <label htmlFor="ticket-prioritaet" className="text-sm font-medium mb-1 block">Priorität</label>
             <Select value={prioritaet} onValueChange={setPrioritaet}>
-              <SelectTrigger>
+              <SelectTrigger id="ticket-prioritaet">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -510,9 +512,9 @@ function CreateTicketForm({ onSuccess, onCancel }: { onSuccess: () => void; onCa
             </Select>
           </div>
           <div>
-            <label className="text-sm font-medium mb-1 block">Kategorie</label>
+            <label htmlFor="ticket-kategorie" className="text-sm font-medium mb-1 block">Kategorie</label>
             <Select value={kategorie} onValueChange={setKategorie}>
-              <SelectTrigger>
+              <SelectTrigger id="ticket-kategorie">
                 <SelectValue placeholder="Optional" />
               </SelectTrigger>
               <SelectContent>
@@ -524,8 +526,9 @@ function CreateTicketForm({ onSuccess, onCancel }: { onSuccess: () => void; onCa
           </div>
         </div>
         <div>
-          <label className="text-sm font-medium mb-1 block">Beschreibung *</label>
+          <label htmlFor="ticket-beschreibung" className="text-sm font-medium mb-1 block">Beschreibung *</label>
           <Textarea
+            id="ticket-beschreibung"
             value={beschreibung}
             onChange={(e) => { setBeschreibung(e.target.value); setFooterError(''); }}
             placeholder="Beschreiben Sie das Problem oder Anliegen im Detail...\n\nBitte geben Sie an:\n- Was genau passiert ist\n- Welche Schritte Sie durchgeführt haben\n- Was Sie erwartet hätten"
@@ -610,6 +613,7 @@ function FAQTab({ canManage }: { canManage: boolean }) {
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
             placeholder="FAQ durchsuchen..."
+            aria-label="FAQ durchsuchen"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="pl-9"
@@ -668,12 +672,14 @@ function FAQTab({ canManage }: { canManage: boolean }) {
                           <>
                             <Button
                               variant="ghost" size="icon" className="h-7 w-7"
+                              aria-label={`FAQ bearbeiten: ${faq.frage}`}
                               onClick={(e) => { e.stopPropagation(); setEditingFaq(faq); }}
                             >
                               <Pencil className="h-3.5 w-3.5" />
                             </Button>
                             <Button
                               variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:text-destructive"
+                              aria-label={`FAQ löschen: ${faq.frage}`}
                               onClick={(e) => { e.stopPropagation(); handleDelete(faq.id); }}
                             >
                               <Trash2 className="h-3.5 w-3.5" />
@@ -746,14 +752,14 @@ function FAQForm({ faq, onSuccess, onCancel }: { faq: FAQ | null; onSuccess: () 
       </DialogHeader>
       <div className="space-y-4 py-4">
         <div>
-          <label className="text-sm font-medium mb-1 block">Frage *</label>
-          <Input value={frage} onChange={(e) => setFrage(e.target.value)} placeholder="Wie kann ich...?" />
+          <label htmlFor="faq-frage" className="text-sm font-medium mb-1 block">Frage *</label>
+          <Input id="faq-frage" value={frage} onChange={(e) => setFrage(e.target.value)} placeholder="Wie kann ich...?" />
         </div>
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <label className="text-sm font-medium mb-1 block">Kategorie</label>
+            <label htmlFor="faq-kategorie" className="text-sm font-medium mb-1 block">Kategorie</label>
             <Select value={kategorie} onValueChange={setKategorie}>
-              <SelectTrigger>
+              <SelectTrigger id="faq-kategorie">
                 <SelectValue placeholder="Optional" />
               </SelectTrigger>
               <SelectContent>
@@ -764,13 +770,14 @@ function FAQForm({ faq, onSuccess, onCancel }: { faq: FAQ | null; onSuccess: () 
             </Select>
           </div>
           <div>
-            <label className="text-sm font-medium mb-1 block">Sortierung</label>
-            <Input type="number" value={sortOrder} onChange={(e) => setSortOrder(parseInt(e.target.value) || 0)} />
+            <label htmlFor="faq-sortierung" className="text-sm font-medium mb-1 block">Sortierung</label>
+            <Input id="faq-sortierung" type="number" value={sortOrder} onChange={(e) => setSortOrder(parseInt(e.target.value) || 0)} />
           </div>
         </div>
         <div>
-          <label className="text-sm font-medium mb-1 block">Antwort *</label>
+          <label htmlFor="faq-antwort" className="text-sm font-medium mb-1 block">Antwort *</label>
           <Textarea
+            id="faq-antwort"
             value={antwort}
             onChange={(e) => setAntwort(e.target.value)}
             placeholder="Detaillierte Antwort..."
@@ -917,6 +924,7 @@ function SucheTab() {
                 <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
                   placeholder="Titel-Stichwort eingeben (News oder Ticket)…"
+                  aria-label="Globale Suche: Titel-Stichwort eingeben"
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
                   onKeyDown={handleKeyDown}
@@ -964,7 +972,7 @@ function SucheTab() {
                 </p>
                 {availableTypes.length > 1 && (
                   <Select value={filterTyp} onValueChange={setFilterTyp}>
-                    <SelectTrigger className="w-[200px]">
+                    <SelectTrigger className="w-[200px]" aria-label="Suchergebnisse nach Bereich filtern">
                       <SelectValue placeholder="Alle Bereiche" />
                     </SelectTrigger>
                     <SelectContent>
