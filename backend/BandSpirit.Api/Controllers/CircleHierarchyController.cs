@@ -1,7 +1,9 @@
+using System.Data;
 using BandSpirit.Api.Infrastructure.Data;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Npgsql;
 
 using BandSpirit.Api.Infrastructure.Auth;
 namespace BandSpirit.Api.Controllers;
@@ -57,40 +59,47 @@ public class CircleHierarchyController : ControllerBase
             return BadRequest(new { fehler = "Ein Kreis kann nicht an sich selbst angehängt werden." });
         }
 
-        // Alle Kreise flach laden – für Zyklus-Prüfung und rekursive RootId-Berechnung.
-        var alle = await _db.S3Circles.ToListAsync();
-
-        var kreis = alle.FirstOrDefault(c => c.Id == id);
-        if (kreis is null)
-        {
-            return NotFound(new { fehler = "Der zu verschiebende Kreis wurde nicht gefunden." });
-        }
-
-        var ziel = alle.FirstOrDefault(c => c.Id == anfrage.ZielKreisId);
-        if (ziel is null)
-        {
-            return NotFound(new { fehler = "Der Ziel-Kreis wurde nicht gefunden." });
-        }
-
-        if (!ziel.IsActive)
-        {
-            return BadRequest(new { fehler = "Der Ziel-Kreis ist nicht aktiv." });
-        }
-
-        // Zyklus verhindern: Der Ziel-Kreis darf kein Nachfahre des Kreises sein
-        // (und auch nicht der Kreis selbst – oben bereits geprüft).
-        var nachfahren = SammleNachfahren(alle, id);
-        if (nachfahren.Contains(anfrage.ZielKreisId))
-        {
-            return BadRequest(new { fehler = "Der Kreis kann nicht an einen seiner eigenen Subkreise angehängt werden." });
-        }
-
-        // Neue Wurzel = Wurzel des Ziel-Kreises (oder der Ziel-Kreis selbst).
-        var neueRootId = ziel.RootId ?? ziel.Id;
-
-        await using var tx = await _db.Database.BeginTransactionAsync();
+        // APP-10-Fix: Lesen, Zyklus-Prüfung UND Schreiben laufen jetzt gemeinsam
+        // in einer SERIALIZABLE-Transaktion. Vorher lag das Laden/die Prüfung
+        // VOR BeginTransactionAsync() – zwei gleichzeitige Verschiebungen (z. B.
+        // "A unter B" und "B unter A") konnten beide gegen ihren jeweils eigenen,
+        // noch unveränderten Snapshot prüfen und anschliessend beide committen,
+        // wodurch ein Zyklus in der Hierarchie entstehen konnte. Bei SERIALIZABLE
+        // erkennt PostgreSQL den Schreibkonflikt und lässt eine der beiden
+        // Transaktionen mit einem Serialisierungsfehler (40001) scheitern.
+        await using var tx = await _db.Database.BeginTransactionAsync(IsolationLevel.Serializable);
         try
         {
+            var alle = await _db.S3Circles.ToListAsync();
+
+            var kreis = alle.FirstOrDefault(c => c.Id == id);
+            if (kreis is null)
+            {
+                return NotFound(new { fehler = "Der zu verschiebende Kreis wurde nicht gefunden." });
+            }
+
+            var ziel = alle.FirstOrDefault(c => c.Id == anfrage.ZielKreisId);
+            if (ziel is null)
+            {
+                return NotFound(new { fehler = "Der Ziel-Kreis wurde nicht gefunden." });
+            }
+
+            if (!ziel.IsActive)
+            {
+                return BadRequest(new { fehler = "Der Ziel-Kreis ist nicht aktiv." });
+            }
+
+            // Zyklus verhindern: Der Ziel-Kreis darf kein Nachfahre des Kreises sein
+            // (und auch nicht der Kreis selbst – oben bereits geprüft).
+            var nachfahren = SammleNachfahren(alle, id);
+            if (nachfahren.Contains(anfrage.ZielKreisId))
+            {
+                return BadRequest(new { fehler = "Der Kreis kann nicht an einen seiner eigenen Subkreise angehängt werden." });
+            }
+
+            // Neue Wurzel = Wurzel des Ziel-Kreises (oder der Ziel-Kreis selbst).
+            var neueRootId = ziel.RootId ?? ziel.Id;
+
             kreis.ParentId = ziel.Id;
             kreis.RootId = neueRootId;
 
@@ -116,6 +125,12 @@ public class CircleHierarchyController : ControllerBase
                 aktualisierteSubkreise = nachfahren.Count,
             });
         }
+        catch (Exception ex) when (IstSerialisierungskonflikt(ex))
+        {
+            await tx.RollbackAsync();
+            _logger.LogWarning(ex, "Serialisierungskonflikt beim Anhängen von Kreis {KreisId} an {ZielId} - gleichzeitige Hierarchie-Änderung.", id, anfrage.ZielKreisId);
+            return Conflict(new { fehler = "Gleichzeitige Änderung an der Kreis-Hierarchie erkannt. Bitte erneut versuchen." });
+        }
         catch (Exception ex)
         {
             await tx.RollbackAsync();
@@ -133,24 +148,26 @@ public class CircleHierarchyController : ControllerBase
     [Authorize(Policy = Permissions.CircleUpdate)]
     public async Task<IActionResult> Loesen([FromRoute] Guid id)
     {
-        var alle = await _db.S3Circles.ToListAsync();
-
-        var kreis = alle.FirstOrDefault(c => c.Id == id);
-        if (kreis is null)
-        {
-            return NotFound(new { fehler = "Der Kreis wurde nicht gefunden." });
-        }
-
-        if (kreis.ParentId is null)
-        {
-            return BadRequest(new { fehler = "Der Kreis ist bereits ein Root-Kreis." });
-        }
-
-        var nachfahren = SammleNachfahren(alle, id);
-
-        await using var tx = await _db.Database.BeginTransactionAsync();
+        // APP-10-Fix: siehe Kommentar in Anhaengen() - Lesen/Prüfen/Schreiben
+        // gemeinsam in einer SERIALIZABLE-Transaktion.
+        await using var tx = await _db.Database.BeginTransactionAsync(IsolationLevel.Serializable);
         try
         {
+            var alle = await _db.S3Circles.ToListAsync();
+
+            var kreis = alle.FirstOrDefault(c => c.Id == id);
+            if (kreis is null)
+            {
+                return NotFound(new { fehler = "Der Kreis wurde nicht gefunden." });
+            }
+
+            if (kreis.ParentId is null)
+            {
+                return BadRequest(new { fehler = "Der Kreis ist bereits ein Root-Kreis." });
+            }
+
+            var nachfahren = SammleNachfahren(alle, id);
+
             kreis.ParentId = null;
             kreis.RootId = kreis.Id; // Der Kreis wird selbst zur Wurzel.
 
@@ -175,12 +192,31 @@ public class CircleHierarchyController : ControllerBase
                 aktualisierteSubkreise = nachfahren.Count,
             });
         }
+        catch (Exception ex) when (IstSerialisierungskonflikt(ex))
+        {
+            await tx.RollbackAsync();
+            _logger.LogWarning(ex, "Serialisierungskonflikt beim Lösen von Kreis {KreisId} - gleichzeitige Hierarchie-Änderung.", id);
+            return Conflict(new { fehler = "Gleichzeitige Änderung an der Kreis-Hierarchie erkannt. Bitte erneut versuchen." });
+        }
         catch (Exception ex)
         {
             await tx.RollbackAsync();
             _logger.LogError(ex, "Fehler beim Lösen von Kreis {KreisId}.", id);
             return StatusCode(500, new { fehler = "Der Kreis konnte nicht gelöst werden." });
         }
+    }
+
+    /// <summary>
+    /// Erkennt einen PostgreSQL-Serialisierungskonflikt (SQLSTATE 40001) oder
+    /// Deadlock (40P01), wie er bei SERIALIZABLE-Transaktionen mit
+    /// überlappenden Lese-/Schreibmengen auftreten kann - typischerweise
+    /// direkt als <see cref="PostgresException"/> oder verpackt in einer
+    /// <see cref="DbUpdateException"/>.
+    /// </summary>
+    private static bool IstSerialisierungskonflikt(Exception ex)
+    {
+        var pgEx = ex as PostgresException ?? ex.InnerException as PostgresException;
+        return pgEx is not null && (pgEx.SqlState == "40001" || pgEx.SqlState == "40P01");
     }
 
     /// <summary>
