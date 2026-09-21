@@ -37,6 +37,37 @@ interface NavItem {
   children?: NavItem[];
 }
 
+/**
+ * UI-02-Fix: `usePathname()` liefert nie einen Query-String, während einige
+ * Ziel-Hrefs in `navItems` einen tragen (z. B. "/hilfe?tab=faq"). Ein simpler
+ * `pathname === href`-Vergleich erkennt solche Ziele daher NIE als aktiv,
+ * während ein Geschwister-Link ohne Query (z. B. "/hilfe" für "Tickets")
+ * fälschlich aktiv bleibt, selbst wenn tatsächlich ein anderer Tab angezeigt
+ * wird. Diese Funktion vergleicht Pfad UND die für die Navigation relevanten
+ * Query-Parameter, und wird sowohl für Eltern- als auch Kind-Einträge sowie
+ * für die Hilfe-Tab-Navigation selbst verwendet (siehe app/(dashboard)/hilfe).
+ */
+const TRACKED_QUERY_KEYS = ['tab'];
+
+function parseHref(href: string): { pathname: string; params: URLSearchParams } {
+  const [pathname, query = ''] = href.split('?');
+  return { pathname, params: new URLSearchParams(query) };
+}
+
+function isNavItemActive(
+  href: string,
+  currentPathname: string | null | undefined,
+  currentSearchParams: { get(key: string): string | null } | null | undefined
+): boolean {
+  const { pathname: hrefPathname, params: hrefParams } = parseHref(href);
+  if (currentPathname === hrefPathname) {
+    return TRACKED_QUERY_KEYS.every(
+      (key) => (hrefParams.get(key) ?? '') === (currentSearchParams?.get(key) ?? '')
+    );
+  }
+  return !!currentPathname?.startsWith(hrefPathname + '/');
+}
+
 const navItems: NavItem[] = [
   { label: 'Dashboard', href: '/dashboard', icon: <LayoutDashboard className="h-5 w-5" />, accessKey: 'dashboard' },
   // MA-Profil: jeder angemeldete Benutzer sieht sein eigenes Profil (keine Berechtigung nötig).
@@ -158,7 +189,7 @@ export function DashboardShell({ children, user }: { children: React.ReactNode; 
 
   // Auto-expand parent if a child is active
   const isChildActive = (item: NavItem) =>
-    item.children?.some(c => pathname === c.href || pathname?.startsWith(c.href + '/'));
+    item.children?.some(c => isNavItemActive(c.href, pathname, searchParams));
 
   const filteredNavItems = navItems?.filter?.((item: NavItem) => {
     if (managedRole) {
@@ -227,7 +258,7 @@ export function DashboardShell({ children, user }: { children: React.ReactNode; 
                           href={child.href}
                           className={cn(
                             'flex items-center gap-2 px-3 py-1.5 rounded-md text-sm transition-colors text-white/60 hover:text-white hover:bg-white/10',
-                            (pathname === child.href || pathname?.startsWith(child.href + '/')) && 'text-white bg-white/15 font-medium'
+                            isNavItemActive(child.href, pathname, searchParams) && 'text-white bg-white/15 font-medium'
                           )}
                         >
                           {child.icon}
@@ -246,7 +277,7 @@ export function DashboardShell({ children, user }: { children: React.ReactNode; 
                 href={item.href}
                 className={cn(
                   'flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors mb-1 text-white/80 hover:text-white hover:bg-white/10',
-                  (pathname === item.href || pathname?.startsWith(item.href + '/')) && 'text-white bg-white/15'
+                  isNavItemActive(item.href, pathname, searchParams) && 'text-white bg-white/15'
                 )}
               >
                 {item.icon}
