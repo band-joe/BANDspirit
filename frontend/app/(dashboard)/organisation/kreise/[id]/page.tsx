@@ -159,7 +159,9 @@ export default function KreisDetailPage() {
 
   // Driver dialog
   const [driverDialogOpen, setDriverDialogOpen] = useState(false);
-  const [driverForm, setDriverForm] = useState({ title: '', description: '', priority: 'MITTEL' });
+  // UI-12-Fix: Backend-Feldnamen (Titel/Beschreibung/Prioritaet) statt
+  // erfundener englischer Namen, die nie zum S3Driver-Modell passten.
+  const [driverForm, setDriverForm] = useState({ titel: '', beschreibung: '', prioritaet: 'MITTEL' });
 
   // Lebenszyklus-Historie
   const [lebenszyklus, setLebenszyklus] = useState<Record<string, any>[]>([]);
@@ -473,7 +475,7 @@ export default function KreisDetailPage() {
       await apiClient.post('/odata/Drivers', { ...driverForm, circleId: params.id }, session);
       toast.success('Spannung erstellt');
       setDriverDialogOpen(false);
-      setDriverForm({ title: '', description: '', priority: 'MITTEL' });
+      setDriverForm({ titel: '', beschreibung: '', prioritaet: 'MITTEL' });
       loadCircle();
     } catch (error: unknown) {
       console.error('Fehler:', error);
@@ -856,11 +858,11 @@ export default function KreisDetailPage() {
                 <DialogContent>
                   <DialogHeader><DialogTitle>Neue Spannung erfassen</DialogTitle></DialogHeader>
                   <div className="space-y-3">
-                    <div><Label>Titel *</Label><Input value={driverForm.title} onChange={e => setDriverForm(f => ({ ...f, title: e.target.value }))} /></div>
-                    <div><Label>Beschreibung</Label><Textarea value={driverForm.description} onChange={e => setDriverForm(f => ({ ...f, description: e.target.value }))} rows={3} /></div>
+                    <div><Label>Titel *</Label><Input value={driverForm.titel} onChange={e => setDriverForm(f => ({ ...f, titel: e.target.value }))} /></div>
+                    <div><Label>Beschreibung</Label><Textarea value={driverForm.beschreibung} onChange={e => setDriverForm(f => ({ ...f, beschreibung: e.target.value }))} rows={3} /></div>
                     <div>
                       <Label>Priorität</Label>
-                      <Select value={driverForm.priority} onValueChange={v => setDriverForm(f => ({ ...f, priority: v }))}>
+                      <Select value={driverForm.prioritaet} onValueChange={v => setDriverForm(f => ({ ...f, prioritaet: v }))}>
                         <SelectTrigger><SelectValue /></SelectTrigger>
                         <SelectContent>
                           <SelectItem value="NIEDRIG">Niedrig</SelectItem>
@@ -888,11 +890,11 @@ export default function KreisDetailPage() {
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2 flex-wrap">
                             <Zap className="h-4 w-4 text-orange-500" />
-                            <h4 className="font-semibold">{String(d.title)}</h4>
+                            <h4 className="font-semibold">{String(d.titel)}</h4>
                             <Badge className={DRIVER_STATUS_COLORS[d.status as string] || ''}>{String(d.status)}</Badge>
-                            <Badge className={PRIORITY_COLORS[d.priority as string] || ''}>{String(d.priority)}</Badge>
+                            <Badge className={PRIORITY_COLORS[d.prioritaet as string] || ''}>{String(d.prioritaet)}</Badge>
                           </div>
-                          {d.description ? <p className="text-sm text-muted-foreground mt-1 line-clamp-2">{String(d.description)}</p> : null}
+                          {d.beschreibung ? <p className="text-sm text-muted-foreground mt-1 line-clamp-2">{String(d.beschreibung)}</p> : null}
                           <p className="text-xs text-muted-foreground mt-1">
                             Erstellt von {((d.creator as Record<string, unknown>)?.name as string) || ''} am {formatDate(d.createdAt as string)}
                           </p>

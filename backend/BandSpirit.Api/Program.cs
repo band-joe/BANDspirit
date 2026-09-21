@@ -70,6 +70,12 @@ try
     odataModelBuilder.EntitySet<S3LebenszyklusPhase>("S3LebenszyklusPhasen");
     odataModelBuilder.EntitySet<S3CircleLebenszyklus>("S3CircleLebenszyklen");
     odataModelBuilder.EntitySet<SpannungWorkItem>("SpannungWorkItems");
+    // UI-12 (P005): ZugewiesenAn (User-Navigation) explizit aus dem OData-EDM-
+    // Modell ausschliessen - sonst könnte $expand=ZugewiesenAn die volle
+    // User-Entität (inkl. Passwort-Hash) offenlegen. Das Frontend löst den
+    // Anzeigenamen stattdessen clientseitig über die bereits geladene
+    // Users-Liste auf.
+    odataModelBuilder.EntityType<SpannungWorkItem>().Ignore(w => w.ZugewiesenAn);
     odataModelBuilder.EntitySet<S3Objection>("Objections");
     odataModelBuilder.Singleton<Firma>("Firma");
 
