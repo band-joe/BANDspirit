@@ -297,6 +297,14 @@ public class BandSpiritDbContext : DbContext
             e.HasOne(w => w.ZugewiesenAn).WithMany().HasForeignKey(w => w.ZugewiesenAnId).OnDelete(DeleteBehavior.SetNull);
         });
 
+        // UI-30-Fix: S3CircleReview existierte bereits als Modell, hatte aber
+        // nie eine FK-Konfiguration (war komplett unbenutzt/unerreichbar).
+        modelBuilder.Entity<S3CircleReview>(e =>
+        {
+            e.HasIndex(r => r.CircleId);
+            e.HasOne(r => r.Circle).WithMany().HasForeignKey(r => r.CircleId).OnDelete(DeleteBehavior.Cascade);
+        });
+
         // ── OKR / KeyResult ────────────────────────────────────────────────
         modelBuilder.Entity<OKR>(e =>
         {

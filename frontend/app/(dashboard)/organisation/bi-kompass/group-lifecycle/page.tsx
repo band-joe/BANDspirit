@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useSession } from 'next-auth/react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -57,7 +57,9 @@ interface CircleReview {
   ergebnis: string;
   notizen: string | null;
   massnahmen: string | null;
-  createdBy: { id: string; name: string };
+  // UI-30-Fix: Backend liefert den Ersteller-Namen bereits flach aufgelöst
+  // (kein verschachteltes createdBy-Objekt).
+  createdByName: string | null;
   createdAt: string;
 }
 
@@ -65,38 +67,21 @@ interface CircleLifecycle {
   id: string;
   name: string;
   purpose: string | null;
-  domain: string | null;
   isActive: boolean;
   lifecyclePhase: string;
   lastReviewDate: string | null;
   nextReviewDate: string | null;
-  reviewNotiz: string | null;
-  archivierungsGrund: string | null;
-  archivierungsDatum: string | null;
-  createdAt: string;
   parentName: string | null;
-  childrenCount: number;
   leadLink: { id: string; name: string } | null;
   hasPurpose: boolean;
   hasLeadLink: boolean;
-  hasRecentReview: boolean;
   needsReview: boolean;
-  _count: { roles: number; s3Meetings: number; drivers: number; decisions: number; circleReviews: number };
+  // UI-30-Fix: reduzierter Funktionsumfang - nur die tatsächlich angezeigten
+  // Zähler (roles, circleReviews); "count" statt "_count" passt zur
+  // camelCase-Serialisierung des neuen REST-Endpoints.
+  count: { roles: number; circleReviews: number };
   recentReviews: CircleReview[];
   openDrivers: number;
-}
-
-interface KPIs {
-  totalCircles: number;
-  activeCircles: number;
-  archivedCircles: number;
-  circlesWithPurposeAndLeadPercent: number;
-  circlesWithPurposeAndLeadCount: number;
-  circlesWithRecentReviewPercent: number;
-  circlesWithRecentReviewCount: number;
-  archivedThisQuarterCount: number;
-  circlesWithPurpose: number;
-  circlesWithLeadLink: number;
 }
 
 // ──────────────────────────────────────────
@@ -329,8 +314,32 @@ export default function GroupLifecyclePage() {
   const canEdit = hasPermission(role, 'org:circle:update');
 
   const [loading, setLoading] = useState(true);
-  const [kpis, setKpis] = useState<KPIs | null>(null);
   const [circles, setCircles] = useState<CircleLifecycle[]>([]);
+
+  // UI-30-Fix: reduzierter Funktionsumfang - KPIs werden clientseitig aus der
+  // Kreisliste abgeleitet statt serverseitig als eigene Prozent-Kennzahlen
+  // berechnet zu werden.
+  const kpis = useMemo(() => {
+    const total = circles.length;
+    const active = circles.filter((c) => c.isActive).length;
+    const archived = total - active;
+    const activeCircles = circles.filter((c) => c.isActive);
+    const withPurposeAndLead = activeCircles.filter((c) => c.hasPurpose && c.hasLeadLink).length;
+    const withRecentReview = activeCircles.filter((c) => !c.needsReview).length;
+    const withPurpose = activeCircles.filter((c) => c.hasPurpose).length;
+    const withLeadLink = activeCircles.filter((c) => c.hasLeadLink).length;
+    return {
+      totalCircles: total,
+      activeCircles: active,
+      archivedCircles: archived,
+      circlesWithPurposeAndLeadPercent: active > 0 ? Math.round((withPurposeAndLead / active) * 100) : 0,
+      circlesWithPurposeAndLeadCount: withPurposeAndLead,
+      circlesWithRecentReviewPercent: active > 0 ? Math.round((withRecentReview / active) * 100) : 0,
+      circlesWithRecentReviewCount: withRecentReview,
+      circlesWithPurpose: withPurpose,
+      circlesWithLeadLink: withLeadLink,
+    };
+  }, [circles]);
   const [search, setSearch] = useState('');
   const [phaseFilter, setPhaseFilter] = useState('all');
   const [reviewFilter, setReviewFilter] = useState('all');
@@ -350,12 +359,11 @@ export default function GroupLifecyclePage() {
   const fetchData = useCallback(async () => {
     if (!session) return;
     try {
-      // Aggregiertes REST-Endpoint (KPIs + berechnete Flags), kein OData-Äquivalent
-      const data = await apiClient.get<{ kpis: KPIs; circles: CircleLifecycle[] }>(
+      // Aggregiertes REST-Endpoint (berechnete Flags je Kreis), kein OData-Äquivalent
+      const data = await apiClient.get<{ circles: CircleLifecycle[] }>(
         '/api/org/circle-lifecycle',
         session
       );
-      setKpis(data.kpis);
       setCircles(data.circles);
     } catch (error: unknown) {
       console.error('Fehler beim Laden:', error);
@@ -499,9 +507,9 @@ export default function GroupLifecyclePage() {
               color={kpis.circlesWithRecentReviewPercent >= 80 ? 'text-green-600' : kpis.circlesWithRecentReviewPercent >= 60 ? 'text-amber-600' : 'text-red-600'}
             />
             <KPICard
-              title="Archiviert (Quartal)"
-              value={kpis.archivedThisQuarterCount}
-              subtitle="Trend: steigend (Bereinigung)"
+              title="Archivierte Kreise"
+              value={kpis.archivedCircles}
+              subtitle={`von ${kpis.totalCircles} total`}
               icon={<Archive className="h-5 w-5 text-gray-500" />}
               color="text-gray-700"
             />
@@ -673,7 +681,7 @@ export default function GroupLifecyclePage() {
                         <div className="flex items-center gap-4 mt-2 text-xs text-muted-foreground">
                           {c.leadLink && <span className="flex items-center gap-1"><Users className="h-3 w-3" /> {c.leadLink.name}</span>}
                           {c.parentName && <span>↳ {c.parentName}</span>}
-                          <span>{c._count.roles} Rollen</span>
+                          <span>{c.count.roles} Rollen</span>
                           {c.openDrivers > 0 && <span className="flex items-center gap-1 text-amber-600"><Zap className="h-3 w-3" /> {c.openDrivers} offene Spannungen</span>}
                           {c.lastReviewDate && <span className="flex items-center gap-1"><Clock className="h-3 w-3" /> Review: {formatDate(c.lastReviewDate)}</span>}
                         </div>
@@ -686,7 +694,7 @@ export default function GroupLifecyclePage() {
                               className="text-xs text-primary hover:underline flex items-center gap-1"
                             >
                               <Eye className="h-3 w-3" />
-                              {c._count.circleReviews} Review{c._count.circleReviews !== 1 ? 's' : ''}
+                              {c.count.circleReviews} Review{c.count.circleReviews !== 1 ? 's' : ''}
                               {expandedReviews[c.id] ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
                             </button>
                             {expandedReviews[c.id] && (
@@ -695,7 +703,7 @@ export default function GroupLifecyclePage() {
                                   <div key={r.id} className="p-2 bg-muted/50 rounded text-xs">
                                     <div className="flex items-center justify-between">
                                       <span className="font-medium">{formatDate(r.reviewDatum)} — {REVIEW_ERGEBNIS_LABELS[r.ergebnis] || r.ergebnis}</span>
-                                      <span className="text-muted-foreground">{r.createdBy.name}</span>
+                                      <span className="text-muted-foreground">{r.createdByName ?? 'Unbekannt'}</span>
                                     </div>
                                     {r.notizen && <p className="text-muted-foreground mt-1">{r.notizen}</p>}
                                     {r.massnahmen && <p className="text-primary mt-1">Massnahmen: {r.massnahmen}</p>}
