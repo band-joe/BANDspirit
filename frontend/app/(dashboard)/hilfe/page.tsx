@@ -144,6 +144,7 @@ export default function HilfePage() {
 // ============================================================
 function TicketsTab({ canManage, userId, role }: { canManage: boolean; userId: string; role: string }) {
   const { data: session } = useSession() || {};
+  const searchParams = useSearchParams();
   const [tickets, setTickets] = useState<SupportTicket[]>([]);
   const [loading, setLoading] = useState(true);
   const [filterStatus, setFilterStatus] = useState<string>('alle');
@@ -151,6 +152,17 @@ function TicketsTab({ canManage, userId, role }: { canManage: boolean; userId: s
   const [searchQuery, setSearchQuery] = useState('');
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [selectedTicket, setSelectedTicket] = useState<SupportTicket | null>(null);
+
+  // UI-10-Fix: Aus der globalen Suche verlinkte Tickets (?ticketId=...) direkt
+  // öffnen und dorthin scrollen, statt nur auf die Tickets-Liste zu verweisen.
+  useEffect(() => {
+    const ticketId = searchParams?.get('ticketId');
+    if (!ticketId || tickets.length === 0) return;
+    const treffer = tickets.find(t => t.id === ticketId);
+    if (!treffer) return;
+    setSelectedTicket(treffer);
+    document.getElementById('ticket-detail')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }, [searchParams, tickets]);
 
   const loadTickets = useCallback(async () => {
     if (!session) return;
@@ -284,12 +296,14 @@ function TicketsTab({ canManage, userId, role }: { canManage: boolean; userId: s
 
       {/* Detail panel */}
       {selectedTicket && (
-        <TicketDetail
-          ticket={selectedTicket}
-          canManage={canManage}
-          onClose={() => setSelectedTicket(null)}
-          onUpdated={() => { loadTickets(); setSelectedTicket(null); }}
-        />
+        <div id="ticket-detail">
+          <TicketDetail
+            ticket={selectedTicket}
+            canManage={canManage}
+            onClose={() => setSelectedTicket(null)}
+            onUpdated={() => { loadTickets(); setSelectedTicket(null); }}
+          />
+        </div>
       )}
     </div>
   );
@@ -841,18 +855,22 @@ function SucheTab() {
           session
         ),
       ]);
+      // UI-10-Fix: Statt jeden Treffer auf dieselbe unspezifische Liste zu
+      // verweisen, verlinkt jedes Ergebnis über eine validierte Datensatz-ID
+      // als Query-Parameter direkt auf den passenden Eintrag - die
+      // Zielseite klappt/markiert ihn dann automatisch auf.
       const mapped: SucheResult[] = [
         ...(news.value ?? []).map((n) => ({
           typ: 'BI-Guide',
           titel: n.titel,
           beschreibung: n.inhalt ?? '',
-          href: '/organisation/bi-guide',
+          href: `/organisation/bi-guide?newsId=${encodeURIComponent(n.id)}`,
         })),
         ...(tickets.value ?? []).map((t) => ({
           typ: 'Ticket',
           titel: t.titel,
           beschreibung: t.beschreibung ?? '',
-          href: '/hilfe?tab=tickets',
+          href: `/hilfe?tab=tickets&ticketId=${encodeURIComponent(t.id)}`,
         })),
       ];
       setResults(mapped);
