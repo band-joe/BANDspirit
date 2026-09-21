@@ -26,12 +26,24 @@ public class CircleAktivitaetenController : ControllerBase
         if (skip < 0) skip = 0;
 
         var circleIdText = circleId.ToString();
-        
-        // Modul IN ("Kreis", "S3Rolle") AND EntityId = circleId
-        // (damit werden auch Rollen-Zuweisungen im Kreis erfasst)
+
+        // Fix: Rollen-Zuweisungen (Modul "S3Rolle") werden von RolesController
+        // mit der RollenINSTANZ-ID als EntityId protokolliert, nicht mit der
+        // Kreis-ID - ein Vergleich l.EntityId == circleIdText konnte solche
+        // Einträge daher nie treffen, obwohl genau das die Absicht war (siehe
+        // vorheriger Kommentar hier). Stattdessen werden zuerst die Rollen-IDs
+        // dieses Kreises aufgelöst und "S3Rolle"-Einträge darüber zugeordnet;
+        // "Kreis"-Einträge bleiben weiterhin direkt über die Kreis-ID gematcht.
+        var rollenIdsDesKreises = await _db.S3Roles
+            .Where(r => r.CircleId == circleId)
+            .Select(r => r.Id.ToString())
+            .ToListAsync();
+
         var eintraege = await _db.AppLogs
             .AsNoTracking()
-            .Where(l => (l.Modul == "Kreis" || l.Modul == "S3Rolle") && l.EntityId == circleIdText)
+            .Where(l =>
+                (l.Modul == "Kreis" && l.EntityId == circleIdText) ||
+                (l.Modul == "S3Rolle" && l.EntityId != null && rollenIdsDesKreises.Contains(l.EntityId)))
             .OrderByDescending(l => l.CreatedAt)
             .Skip(skip)
             .Take(top)
