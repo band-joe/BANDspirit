@@ -28,4 +28,11 @@ public class S3Proposal : AuditableEntity
 
     /// <summary>Einwände zu diesem Antrag (Navigation).</summary>
     public List<S3Objection> Objections { get; set; } = new();
+
+    /// <summary>
+    /// UI-28-Fix: Getroffene Entscheidung zu diesem Antrag (1:1-Navigation).
+    /// Fehlte komplett - $expand=Decision (Teil von $expand=Proposals($expand=
+    /// Objections,Decision)) scheiterte dadurch mit einem OData-400-Fehler.
+    /// </summary>
+    public S3Decision? Decision { get; set; }
 }
