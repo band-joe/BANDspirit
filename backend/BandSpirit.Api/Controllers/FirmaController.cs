@@ -22,18 +22,38 @@ public class FirmaController : ODataController
 
     public FirmaController(BandSpiritDbContext db) => _db = db;
 
-    /// <summary>Liefert (bzw. erzeugt) den Firma-Singleton.</summary>
+    /// <summary>
+    /// Liefert (bzw. erzeugt) den Firma-Singleton.
+    /// DB-12-Fix: Bei gleichzeitigen Erst-Anfragen (Tabelle noch leer) können zwei
+    /// Requests beide den Null-Check passieren und beide ein Insert versuchen - ohne
+    /// diese Behandlung würde der zweite mit einer rohen 500-Unique-Violation
+    /// fehlschlagen statt die inzwischen angelegte Zeile einfach zu lesen.
+    /// </summary>
     private async Task<Firma> GetOrCreateAsync()
     {
         var firma = await _db.Firmas.FirstOrDefaultAsync(f => f.Id == "singleton");
-        if (firma is null)
+        if (firma is not null)
         {
-            firma = new Firma { Id = "singleton", Firmenname = "BANDspirit AG" };
-            _db.Firmas.Add(firma);
+            return firma;
+        }
+
+        firma = new Firma { Id = "singleton", Firmenname = "BANDspirit AG" };
+        _db.Firmas.Add(firma);
+        try
+        {
             await _db.SaveChangesAsync();
+        }
+        catch (DbUpdateException ex) when (IstEindeutigkeitsverletzung(ex))
+        {
+            _db.Entry(firma).State = EntityState.Detached;
+            firma = await _db.Firmas.FirstAsync(f => f.Id == "singleton");
         }
         return firma;
     }
+
+    /// <summary>Erkennt eine PostgreSQL-Unique-Constraint-Verletzung (SQLSTATE 23505).</summary>
+    private static bool IstEindeutigkeitsverletzung(DbUpdateException ex)
+        => ex.InnerException is Npgsql.PostgresException { SqlState: "23505" };
 
     /// <summary>GET /odata/Firma – Firmen-Stammdaten abrufen (öffentlich für Login-Branding).</summary>
     [HttpGet]
@@ -77,6 +97,10 @@ public class FirmaLogoController : ControllerBase
         _logger = logger;
     }
 
+    /// <summary>Erkennt eine PostgreSQL-Unique-Constraint-Verletzung (SQLSTATE 23505).</summary>
+    private static bool IstEindeutigkeitsverletzung(DbUpdateException ex)
+        => ex.InnerException is Npgsql.PostgresException { SqlState: "23505" };
+
     /// <summary>
     /// POST /api/firma/logo – Firmenlogo hochladen (Multipart-Formulardaten, Feld "datei").
     /// Das Bild wird serverseitig in den Objektspeicher (MinIO) geladen, da der Browser
@@ -92,6 +116,7 @@ public class FirmaLogoController : ControllerBase
         }
 
         var firma = await _db.Firmas.FirstOrDefaultAsync(f => f.Id == "singleton");
+        var neuAngelegt = firma is null;
         if (firma is null)
         {
             firma = new Firma { Id = "singleton", Firmenname = "BANDspirit AG" };
@@ -129,6 +154,16 @@ public class FirmaLogoController : ControllerBase
 
         try
         {
+            await _db.SaveChangesAsync();
+        }
+        catch (DbUpdateException ex) when (neuAngelegt && IstEindeutigkeitsverletzung(ex))
+        {
+            // DB-12-Fix: Race mit einer parallelen Erst-Initialisierung des Singletons -
+            // die (inzwischen existierende) Zeile erneut laden und das Logo dort setzen,
+            // statt die S3-Datei fälschlich als verwaist zu behandeln und aufzuräumen.
+            _db.Entry(firma).State = EntityState.Detached;
+            firma = await _db.Firmas.FirstAsync(f => f.Id == "singleton");
+            firma.LogoPath = key;
             await _db.SaveChangesAsync();
         }
         catch (DbUpdateException ex)

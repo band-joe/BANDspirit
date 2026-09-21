@@ -159,6 +159,10 @@ public class BandSpiritDbContext : DbContext
         modelBuilder.Entity<Firma>(e =>
         {
             e.Property(f => f.Id).ValueGeneratedNever();
+            // DB-12-Fix: Der Primärschlüssel allein verhindert nur doppelte IDs,
+            // nicht Zeilen mit einer ANDEREN ID als "singleton". CHECK erzwingt
+            // die tatsächliche Invariante (genau eine, fest benannte Firma-Zeile).
+            e.ToTable(t => t.HasCheckConstraint("CK_Firmas_NurSingleton", "\"Id\" = 'singleton'"));
         });
 
         // ── Stammdaten (Unique: [Kategorie, Code]) ────────────────────────
