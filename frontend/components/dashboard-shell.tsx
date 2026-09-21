@@ -18,10 +18,11 @@ import {
 } from '@/lib/nav-access';
 import {
   LayoutDashboard, UserCog, Settings, Building2,
-  LogOut, Menu, X, ChevronDown, ChevronRight, ScrollText, BookOpen, ShieldCheck, Shield, Code, BookText, Cpu, GitBranch, Sparkles,
+  LogOut, Menu, ChevronDown, ChevronRight, ScrollText, BookOpen, ShieldCheck, Shield, Code, BookText, Cpu, GitBranch, Sparkles,
   CircleDot, Zap, Network, LifeBuoy, Ticket, HelpCircle, Newspaper, Search, Compass, Cloud, RefreshCw, Database, ClipboardList, Server, Target, ListChecks, Gauge, UserCircle, Mails, Tag, CalendarRange,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Sheet, SheetContent, SheetTitle, SheetDescription } from '@/components/ui/sheet';
 
 interface NavItem {
   label: string;
@@ -187,6 +188,13 @@ export function DashboardShell({ children, user }: { children: React.ReactNode; 
     }
   }, [managedRole, pathname, searchParams, router]);
 
+  // UI-04-Fix: Mobiles Menü nach jeder Navigation (Link-Klick oder
+  // programmatischer Routenwechsel) automatisch schliessen, statt geöffnet
+  // stehen zu bleiben ("close-on-navigation" aus dem Drawer-Interaktionsmodell).
+  useEffect(() => {
+    setSidebarOpen(false);
+  }, [pathname, searchParams]);
+
   // Auto-expand parent if a child is active
   const isChildActive = (item: NavItem) =>
     item.children?.some(c => isNavItemActive(c.href, pathname, searchParams));
@@ -206,106 +214,134 @@ export function DashboardShell({ children, user }: { children: React.ReactNode; 
     setExpandedGroups(prev => ({ ...prev, [label]: !prev[label] }));
   };
 
+  // UI-04-Fix: Der Navigationsinhalt selbst ist für Desktop (immer sichtbare
+  // statische Spalte) und Mobile (Drawer) identisch - nur die umgebende
+  // Hülle unterscheidet sich. Als Funktion extrahiert, damit beide Stellen
+  // exakt dieselbe Struktur/Logik verwenden, statt sie zu duplizieren.
+  const renderSidebarNav = () => (
+    <>
+      <div className="flex items-center h-16 px-4 border-b border-white/10">
+        <Link href="/dashboard" className="flex items-center gap-2">
+          <div className="w-8 h-8 rounded-lg bg-white/20 flex items-center justify-center">
+            <span className="text-white font-bold text-sm">BA</span>
+          </div>
+          <span className="font-display font-bold text-lg">BANDspirit</span>
+        </Link>
+      </div>
+
+      <nav className="flex-1 overflow-y-auto py-4 px-2">
+        {filteredNavItems.map((item) => {
+          if (item.children) {
+            const isOpen = expandedGroups[item.label] ?? isChildActive(item);
+            // Bei verwalteten Rollen ist der Eltern-Eintrag bereits über den
+            // accessKey freigegeben -> alle Unterpunkte anzeigen. Sonst greift
+            // die bestehende Berechtigungsprüfung je Unterpunkt.
+            const visibleChildren = managedRole
+              ? item.children
+              : item.children.filter(c => can(c.permission));
+            return (
+              <div key={item.label} className="mb-1">
+                <button
+                  onClick={() => toggleGroup(item.label)}
+                  aria-expanded={isOpen}
+                  className={cn(
+                    'w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors text-white/80 hover:text-white hover:bg-white/10',
+                    isChildActive(item) && 'text-white bg-white/10'
+                  )}
+                >
+                  {item.icon}
+                  <span className="flex-1 text-left">{item.label}</span>
+                  {isOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                </button>
+                {isOpen && (
+                  <div className="ml-4 mt-1 space-y-1">
+                    {visibleChildren.map((child) => (
+                      <Link
+                        key={child.href}
+                        href={child.href}
+                        className={cn(
+                          'flex items-center gap-2 px-3 py-1.5 rounded-md text-sm transition-colors text-white/60 hover:text-white hover:bg-white/10',
+                          isNavItemActive(child.href, pathname, searchParams) && 'text-white bg-white/15 font-medium'
+                        )}
+                      >
+                        {child.icon}
+                        {child.label}
+                      </Link>
+                    ))}
+                  </div>
+                )}
+              </div>
+            );
+          }
+
+          return (
+            <Link
+              key={item.href}
+              href={item.href}
+              className={cn(
+                'flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors mb-1 text-white/80 hover:text-white hover:bg-white/10',
+                isNavItemActive(item.href, pathname, searchParams) && 'text-white bg-white/15'
+              )}
+            >
+              {item.icon}
+              {item.label}
+            </Link>
+          );
+        })}
+      </nav>
+
+      <div className="border-t border-white/10 p-4">
+        <div className="text-sm text-white/70 mb-1">{user?.name || 'Benutzer'}</div>
+        <div className="text-xs text-white/50 mb-2">{getRoleLabel(user?.role ?? '')}</div>
+        <Button variant="ghost" className="w-full justify-start text-white/70 hover:text-white hover:bg-white/10" onClick={handleLogout}>
+          <LogOut className="h-4 w-4 mr-2" />
+          Abmelden
+        </Button>
+      </div>
+    </>
+  );
+
   return (
     <div className="min-h-screen flex bg-background">
-      {/* Sidebar */}
-      <aside
-        className={cn(
-          'fixed inset-y-0 left-0 z-50 w-64 bg-[#3e8f88] text-white transform transition-transform duration-200 ease-in-out lg:relative lg:translate-x-0',
-          sidebarOpen ? 'translate-x-0' : '-translate-x-full'
-        )}
-      >
-        <div className="flex items-center justify-between h-16 px-4 border-b border-white/10">
-          <Link href="/dashboard" className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-lg bg-white/20 flex items-center justify-center">
-              <span className="text-white font-bold text-sm">BA</span>
-            </div>
-            <span className="font-display font-bold text-lg">BANDspirit</span>
-          </Link>
-          <Button variant="ghost" size="icon" className="lg:hidden text-white" onClick={() => setSidebarOpen(false)}>
-            <X className="h-5 w-5" />
-          </Button>
-        </div>
-
-        <nav className="flex-1 overflow-y-auto py-4 px-2">
-          {filteredNavItems.map((item) => {
-            if (item.children) {
-              const isOpen = expandedGroups[item.label] ?? isChildActive(item);
-              // Bei verwalteten Rollen ist der Eltern-Eintrag bereits über den
-              // accessKey freigegeben -> alle Unterpunkte anzeigen. Sonst greift
-              // die bestehende Berechtigungsprüfung je Unterpunkt.
-              const visibleChildren = managedRole
-                ? item.children
-                : item.children.filter(c => can(c.permission));
-              return (
-                <div key={item.label} className="mb-1">
-                  <button
-                    onClick={() => toggleGroup(item.label)}
-                    className={cn(
-                      'w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors text-white/80 hover:text-white hover:bg-white/10',
-                      isChildActive(item) && 'text-white bg-white/10'
-                    )}
-                  >
-                    {item.icon}
-                    <span className="flex-1 text-left">{item.label}</span>
-                    {isOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
-                  </button>
-                  {isOpen && (
-                    <div className="ml-4 mt-1 space-y-1">
-                      {visibleChildren.map((child) => (
-                        <Link
-                          key={child.href}
-                          href={child.href}
-                          className={cn(
-                            'flex items-center gap-2 px-3 py-1.5 rounded-md text-sm transition-colors text-white/60 hover:text-white hover:bg-white/10',
-                            isNavItemActive(child.href, pathname, searchParams) && 'text-white bg-white/15 font-medium'
-                          )}
-                        >
-                          {child.icon}
-                          {child.label}
-                        </Link>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              );
-            }
-
-            return (
-              <Link
-                key={item.href}
-                href={item.href}
-                className={cn(
-                  'flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors mb-1 text-white/80 hover:text-white hover:bg-white/10',
-                  isNavItemActive(item.href, pathname, searchParams) && 'text-white bg-white/15'
-                )}
-              >
-                {item.icon}
-                {item.label}
-              </Link>
-            );
-          })}
-        </nav>
-
-        <div className="border-t border-white/10 p-4">
-          <div className="text-sm text-white/70 mb-1">{user?.name || 'Benutzer'}</div>
-          <div className="text-xs text-white/50 mb-2">{getRoleLabel(user?.role ?? '')}</div>
-          <Button variant="ghost" className="w-full justify-start text-white/70 hover:text-white hover:bg-white/10" onClick={handleLogout}>
-            <LogOut className="h-4 w-4 mr-2" />
-            Abmelden
-          </Button>
-        </div>
+      {/* Desktop-Sidebar: immer sichtbare statische Spalte ab lg-Breakpoint. */}
+      <aside className="hidden lg:flex lg:flex-col lg:w-64 bg-[#3e8f88] text-white">
+        {renderSidebarNav()}
       </aside>
 
-      {/* Overlay */}
-      {sidebarOpen && (
-        <div className="fixed inset-0 bg-black/50 z-40 lg:hidden" onClick={() => setSidebarOpen(false)} />
-      )}
+      {/* UI-04-Fix: Mobiles Menü als Radix-Dialog-basierter Sheet-Drawer statt
+          einer per CSS-Transform verschobenen <aside>. Das behebt alle vier
+          im Finding genannten Lücken auf einmal, weil Radix Dialog sie bereits
+          eingebaut mitbringt: Content wird bei geschlossenem Zustand komplett
+          aus dem DOM entfernt (keine tabbaren Off-Screen-Elemente), Fokus wird
+          beim Öffnen in den Drawer und beim Schliessen zurück zum auslösenden
+          Button verschoben (Fokus-Zyklus/-Restauration), Escape schliesst den
+          Dialog, und der Hintergrund wird über das automatische Overlay von
+          Interaktion isoliert. "close-on-navigation" wird oben separat per
+          useEffect auf [pathname, searchParams] sichergestellt. */}
+      <Sheet open={sidebarOpen} onOpenChange={setSidebarOpen}>
+        <SheetContent
+          id="mobile-sidebar"
+          side="left"
+          className="w-64 max-w-[85vw] bg-[#3e8f88] text-white border-none p-0 flex flex-col lg:hidden"
+        >
+          <SheetTitle className="sr-only">Navigationsmenü</SheetTitle>
+          <SheetDescription className="sr-only">Hauptnavigation von BANDspirit</SheetDescription>
+          {renderSidebarNav()}
+        </SheetContent>
+      </Sheet>
 
       {/* Main Content */}
       <main className="flex-1 min-h-screen">
         <header className="h-16 border-b bg-card flex items-center px-4 lg:px-6">
-          <Button variant="ghost" size="icon" className="lg:hidden mr-2" onClick={() => setSidebarOpen(true)}>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="lg:hidden mr-2"
+            onClick={() => setSidebarOpen(true)}
+            aria-label="Navigationsmenü öffnen"
+            aria-expanded={sidebarOpen}
+            aria-controls="mobile-sidebar"
+          >
             <Menu className="h-5 w-5" />
           </Button>
           <div className="flex-1" />
