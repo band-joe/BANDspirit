@@ -245,8 +245,8 @@ export function DashboardShell({ children, user }: { children: React.ReactNode; 
                   onClick={() => toggleGroup(item.label)}
                   aria-expanded={isOpen}
                   className={cn(
-                    'w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors text-white/80 hover:text-white hover:bg-white/10',
-                    isChildActive(item) && 'text-white bg-white/10'
+                    'w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors text-white hover:bg-white/10',
+                    isChildActive(item) && 'bg-white/10'
                   )}
                 >
                   {item.icon}
@@ -260,8 +260,8 @@ export function DashboardShell({ children, user }: { children: React.ReactNode; 
                         key={child.href}
                         href={child.href}
                         className={cn(
-                          'flex items-center gap-2 px-3 py-1.5 rounded-md text-sm transition-colors text-white/60 hover:text-white hover:bg-white/10',
-                          isNavItemActive(child.href, pathname, searchParams) && 'text-white bg-white/15 font-medium'
+                          'flex items-center gap-2 px-3 py-1.5 rounded-md text-sm transition-colors text-white hover:bg-white/10',
+                          isNavItemActive(child.href, pathname, searchParams) && 'bg-white/10 font-medium'
                         )}
                       >
                         {child.icon}
@@ -279,8 +279,8 @@ export function DashboardShell({ children, user }: { children: React.ReactNode; 
               key={item.href}
               href={item.href}
               className={cn(
-                'flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors mb-1 text-white/80 hover:text-white hover:bg-white/10',
-                isNavItemActive(item.href, pathname, searchParams) && 'text-white bg-white/15'
+                'flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors mb-1 text-white hover:bg-white/10',
+                isNavItemActive(item.href, pathname, searchParams) && 'bg-white/10'
               )}
             >
               {item.icon}
@@ -291,9 +291,9 @@ export function DashboardShell({ children, user }: { children: React.ReactNode; 
       </nav>
 
       <div className="border-t border-white/10 p-4">
-        <div className="text-sm text-white/70 mb-1">{user?.name || 'Benutzer'}</div>
-        <div className="text-xs text-white/50 mb-2">{getRoleLabel(user?.role ?? '')}</div>
-        <Button variant="ghost" className="w-full justify-start text-white/70 hover:text-white hover:bg-white/10" onClick={handleLogout}>
+        <div className="text-sm text-white mb-1">{user?.name || 'Benutzer'}</div>
+        <div className="text-xs text-white mb-2">{getRoleLabel(user?.role ?? '')}</div>
+        <Button variant="ghost" className="w-full justify-start text-white hover:bg-white/10" onClick={handleLogout}>
           <LogOut className="h-4 w-4 mr-2" />
           Abmelden
         </Button>
@@ -303,8 +303,17 @@ export function DashboardShell({ children, user }: { children: React.ReactNode; 
 
   return (
     <div className="min-h-screen flex bg-background">
-      {/* Desktop-Sidebar: immer sichtbare statische Spalte ab lg-Breakpoint. */}
-      <aside className="hidden lg:flex lg:flex-col lg:w-64 bg-[#3e8f88] text-white">
+      {/* Desktop-Sidebar: immer sichtbare statische Spalte ab lg-Breakpoint.
+          UI-05-Fix: #2a6b64 (dunklere Variante des Marken-Teals, im Rest der
+          App bereits als Hover-Farbe verwendet) statt #3e8f88 als Hintergrund
+          - Weiss auf #3e8f88 erreicht nur ~3.83:1, auf #2a6b64 ~6.2:1 (AA
+          4.5:1 für normalen Text). Alle Sidebar-Texte sind daher jetzt
+          voll deckend (text-white) statt mit reduzierter Deckkraft (die
+          zuvor u. a. bei /70 und /50 den Kontrast weiter unter 4.5:1 drückte).
+          Der Aktiv-Hintergrund ist von bg-white/15 auf bg-white/10 reduziert,
+          da /15 den Effektivhintergrund wieder in Richtung des alten,
+          nicht-konformen Tons aufhellte (~4.44:1 statt ~4.96:1 bei /10). */}
+      <aside className="hidden lg:flex lg:flex-col lg:w-64 bg-[#2a6b64] text-white">
         {renderSidebarNav()}
       </aside>
 
@@ -322,7 +331,7 @@ export function DashboardShell({ children, user }: { children: React.ReactNode; 
         <SheetContent
           id="mobile-sidebar"
           side="left"
-          className="w-64 max-w-[85vw] bg-[#3e8f88] text-white border-none p-0 flex flex-col lg:hidden"
+          className="w-64 max-w-[85vw] bg-[#2a6b64] text-white border-none p-0 flex flex-col lg:hidden"
         >
           <SheetTitle className="sr-only">Navigationsmenü</SheetTitle>
           <SheetDescription className="sr-only">Hauptnavigation von BANDspirit</SheetDescription>
