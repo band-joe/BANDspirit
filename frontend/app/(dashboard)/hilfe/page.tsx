@@ -659,40 +659,58 @@ function FAQTab({ canManage }: { canManage: boolean }) {
               <div className="space-y-2">
                 {items.map((faq) => (
                   <Card key={faq.id} className="overflow-hidden">
-                    <button
-                      className="w-full p-4 flex items-center justify-between text-left hover:bg-muted/50 transition-colors"
-                      onClick={() => setExpandedId(expandedId === faq.id ? null : faq.id)}
-                    >
-                      <div className="flex items-center gap-3 flex-1 min-w-0">
+                    {/* UI-21-Fix: Vorher war die gesamte Kopfzeile ein <button>
+                        (Auf-/Zuklapp-Trigger), der die Bearbeiten-/Löschen-Buttons
+                        verschachtelt enthielt - ungültiges HTML (Button-in-Button),
+                        dessen Fokus-/Aktivierungssemantik uneinheitlich ist. Jetzt
+                        eine nicht-interaktive Kopfzeile mit einem eigenen,
+                        auf Titel+Chevron begrenzten Trigger-Button und den
+                        Aktions-Buttons als echten Geschwistern - kein stopPropagation
+                        mehr nötig, da nichts mehr verschachtelt ist. */}
+                    <div className="w-full flex items-center gap-1">
+                      <button
+                        type="button"
+                        className="flex-1 min-w-0 flex items-center gap-3 p-4 text-left hover:bg-muted/50 transition-colors"
+                        onClick={() => setExpandedId(expandedId === faq.id ? null : faq.id)}
+                        aria-expanded={expandedId === faq.id}
+                      >
                         <HelpCircle className="h-5 w-5 text-[#3e8f88] shrink-0" />
-                        <span className="font-medium text-sm">{faq.frage}</span>
-                      </div>
-                      <div className="flex items-center gap-2 shrink-0">
+                        <span className="font-medium text-sm truncate">{faq.frage}</span>
+                      </button>
+                      <div className="flex items-center gap-2 shrink-0 pr-4">
                         {canManage && (
                           <>
                             <Button
                               variant="ghost" size="icon" className="h-7 w-7"
                               aria-label={`FAQ bearbeiten: ${faq.frage}`}
-                              onClick={(e) => { e.stopPropagation(); setEditingFaq(faq); }}
+                              onClick={() => setEditingFaq(faq)}
                             >
                               <Pencil className="h-3.5 w-3.5" />
                             </Button>
                             <Button
                               variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:text-destructive"
                               aria-label={`FAQ löschen: ${faq.frage}`}
-                              onClick={(e) => { e.stopPropagation(); handleDelete(faq.id); }}
+                              onClick={() => handleDelete(faq.id)}
                             >
                               <Trash2 className="h-3.5 w-3.5" />
                             </Button>
                           </>
                         )}
-                        {expandedId === faq.id ? (
-                          <ChevronDown className="h-4 w-4 text-muted-foreground" />
-                        ) : (
-                          <ChevronRight className="h-4 w-4 text-muted-foreground" />
-                        )}
+                        <button
+                          type="button"
+                          className="p-1 rounded hover:bg-muted transition-colors"
+                          onClick={() => setExpandedId(expandedId === faq.id ? null : faq.id)}
+                          aria-label={expandedId === faq.id ? 'Antwort einklappen' : 'Antwort anzeigen'}
+                          aria-expanded={expandedId === faq.id}
+                        >
+                          {expandedId === faq.id ? (
+                            <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                          ) : (
+                            <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                          )}
+                        </button>
                       </div>
-                    </button>
+                    </div>
                     {expandedId === faq.id && (
                       <div className="px-4 pb-4 pt-0">
                         <div className="pl-8 border-l-2 border-[#3e8f88]/20 ml-2.5">
