@@ -374,6 +374,28 @@ public class BandSpiritDbContext : DbContext
                 .HasForeignKey(m => m.UserId)
                 .OnDelete(DeleteBehavior.Cascade);
         });
+
+        // ── DB-08-Fix: Gültigkeits-Reihenfolge auf allen AuditableEntity-Tabellen ──
+        // DateFrom/DateTo ("Gültig ab"/"Gültig bis") existieren auf jeder Entität,
+        // ohne DB-Constraint liess sich aber ein "Gültig bis" vor "Gültig ab"
+        // speichern (z. B. über die Kreis-/Rollendefinitions-Bearbeitung im
+        // Frontend). Erlaubt weiterhin beide NULL oder nur eine Seite gesetzt -
+        // verbietet ausschliesslich die invertierte Reihenfolge, wenn beide gesetzt sind.
+        foreach (var entityType in modelBuilder.Model.GetEntityTypes())
+        {
+            if (entityType.IsOwned() || !typeof(AuditableEntity).IsAssignableFrom(entityType.ClrType))
+            {
+                continue;
+            }
+            var tableName = entityType.GetTableName();
+            if (tableName is null)
+            {
+                continue;
+            }
+            modelBuilder.Entity(entityType.ClrType).ToTable(tb => tb.HasCheckConstraint(
+                $"CK_{tableName}_GueltigAbVorGueltigBis",
+                "\"DateFrom\" IS NULL OR \"DateTo\" IS NULL OR \"DateFrom\" <= \"DateTo\""));
+        }
     }
 
     /// <summary>

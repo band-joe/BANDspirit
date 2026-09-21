@@ -16,11 +16,21 @@ public class AuthService
 
     public AuthService(BandSpiritDbContext db) => _db = db;
 
+    /// <summary>
+    /// DB-13: Normalisiert eine E-Mail-Adresse für den Vergleich mit User.EmailCanonical
+    /// (Trim + ToLowerInvariant, identisch zur Normalisierung beim Speichern in
+    /// BandSpiritDbContext.NormalisiereEmailFelder). Ohne diesen Abgleich fänden
+    /// Login/Signup/SSO-Lookups Gross-/Kleinschreibungs- oder Leerzeichen-Varianten
+    /// derselben Adresse nicht (z. B. Duplikat-Provisionierung bei Entra-ID-Login).
+    /// </summary>
+    public static string NormalizeEmail(string email) => email.Trim().ToLowerInvariant();
+
     /// <summary>Prüft die Anmeldedaten und liefert bei Erfolg den Benutzer.</summary>
     /// <remarks>K81: Login nur für verifizierte Benutzer (EmailVerified = true).</remarks>
     public async Task<User?> ValidateCredentialsAsync(string email, string passwort)
     {
-        var user = await _db.Users.FirstOrDefaultAsync(u => u.Email == email && u.Aktiv);
+        var emailCanonical = NormalizeEmail(email);
+        var user = await _db.Users.FirstOrDefaultAsync(u => u.EmailCanonical == emailCanonical && u.Aktiv);
         if (user is null || string.IsNullOrEmpty(user.Password))
         {
             return null;
@@ -44,7 +54,8 @@ public class AuthService
     /// </remarks>
     public async Task<User> SignupAsync(string name, string email, string passwort, string role)
     {
-        var existiert = await _db.Users.AnyAsync(u => u.Email == email);
+        var emailCanonical = NormalizeEmail(email);
+        var existiert = await _db.Users.AnyAsync(u => u.EmailCanonical == emailCanonical);
         if (existiert)
         {
             throw new InvalidOperationException("E-Mail-Adresse ist bereits vergeben.");
@@ -90,7 +101,8 @@ public class AuthService
     /// <returns>Der KLARTEXT-Token (für den E-Mail-Versand) oder null, falls der Benutzer nicht existiert.</returns>
     public async Task<string?> CreatePasswordResetTokenAsync(string email)
     {
-        var user = await _db.Users.FirstOrDefaultAsync(u => u.Email == email);
+        var emailCanonical = NormalizeEmail(email);
+        var user = await _db.Users.FirstOrDefaultAsync(u => u.EmailCanonical == emailCanonical);
         if (user is null)
         {
             // Aus Sicherheitsgründen keine Information über Existenz preisgeben.

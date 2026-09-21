@@ -142,7 +142,10 @@ public class AuthController : ControllerBase
             }
 
             // Benutzer suchen oder provisionieren
-            var user = await _db.Users.FirstOrDefaultAsync(u => u.Email == email);
+            // DB-13: Normalisierter Vergleich, sonst würde ein Entra-ID-Claim mit
+            // abweichender Gross-/Kleinschreibung fälschlich einen Duplikat-Account anlegen.
+            var emailCanonical = Services.AuthService.NormalizeEmail(email);
+            var user = await _db.Users.FirstOrDefaultAsync(u => u.EmailCanonical == emailCanonical);
             if (user is null)
             {
                 // Just-in-Time-Provisionierung (immer als "User")
@@ -238,8 +241,9 @@ public class AuthController : ControllerBase
     [AllowAnonymous]
     public async Task<IActionResult> ResendVerification([FromBody] ResendVerificationRequest request)
     {
-        var user = await _db.Users.FirstOrDefaultAsync(u => u.Email == request.Email);
-        
+        var emailCanonical = Services.AuthService.NormalizeEmail(request.Email);
+        var user = await _db.Users.FirstOrDefaultAsync(u => u.EmailCanonical == emailCanonical);
+
         // Immer 200 zurückgeben (analog zu forgot-password), um keine Konto-Existenz preiszugeben
         if (user is null || user.EmailVerified)
         {
