@@ -126,7 +126,24 @@ public class FirmaLogoController : ControllerBase
         }
 
         firma.LogoPath = key;
-        await _db.SaveChangesAsync();
+
+        try
+        {
+            await _db.SaveChangesAsync();
+        }
+        catch (DbUpdateException ex)
+        {
+            // APP-07-Fix: Ohne diese Kompensation bliebe das Objekt verwaist in S3,
+            // wenn der DB-Update fehlschlägt (S3 und DB liefen sonst auseinander).
+            _logger.LogError(ex, "DB-Update des Firmenlogos fehlgeschlagen, räume S3-Objekt {Key} auf.", key);
+            try { await _s3.DeleteAsync(key); }
+            catch (Amazon.S3.AmazonS3Exception cleanupEx)
+            {
+                _logger.LogError(cleanupEx, "Aufräumen des verwaisten S3-Objekts {Key} fehlgeschlagen.", key);
+            }
+            return StatusCode(500, new { fehler = "Das Logo konnte nicht gespeichert werden." });
+        }
+
         return Ok(new { logoPath = key });
     }
 
@@ -166,8 +183,17 @@ public class FirmaLogoController : ControllerBase
         var firma = await _db.Firmas.FirstOrDefaultAsync(f => f.Id == "singleton");
         if (firma?.LogoPath is not null)
         {
-            try { await _s3.DeleteAsync(firma.LogoPath); }
-            catch { /* Bereinigung ist optional. */ }
+            // APP-07-Fix: Schlägt das S3-Löschen fehl, wird der DB-Verweis NICHT entfernt,
+            // sonst bliebe die Datei unauffindbar in S3 zurück (kein Verweis mehr in der DB).
+            try
+            {
+                await _s3.DeleteAsync(firma.LogoPath);
+            }
+            catch (Amazon.S3.AmazonS3Exception ex)
+            {
+                _logger.LogError(ex, "S3-Löschen des Firmenlogos {Pfad} fehlgeschlagen.", firma.LogoPath);
+                return StatusCode(502, new { fehler = "Das Logo konnte nicht aus dem Objektspeicher entfernt werden." });
+            }
             firma.LogoPath = null;
             await _db.SaveChangesAsync();
         }

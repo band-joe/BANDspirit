@@ -86,7 +86,23 @@ public class S3RollenDefinitionDokumenteController : ControllerBase
             DateigroesseBytes = datei.Length
         };
         _db.S3RolleDokumente.Add(dokument);
-        await _db.SaveChangesAsync();
+
+        try
+        {
+            await _db.SaveChangesAsync();
+        }
+        catch (DbUpdateException ex)
+        {
+            // APP-07-Fix: Ohne diese Kompensation bliebe das Objekt verwaist in S3,
+            // wenn der DB-Insert fehlschlägt (S3 und DB liefen sonst auseinander).
+            _logger.LogError(ex, "DB-Insert des Rollendefinitions-Dokuments fehlgeschlagen, räume S3-Objekt {Key} auf.", key);
+            try { await _s3.DeleteAsync(key); }
+            catch (Amazon.S3.AmazonS3Exception cleanupEx)
+            {
+                _logger.LogError(cleanupEx, "Aufräumen des verwaisten S3-Objekts {Key} fehlgeschlagen.", key);
+            }
+            return StatusCode(500, new { fehler = "Das Dokument konnte nicht gespeichert werden." });
+        }
 
         return Ok(new
         {
@@ -136,8 +152,17 @@ public class S3RollenDefinitionDokumenteController : ControllerBase
 
         if (!string.IsNullOrEmpty(dokument.StoragePfad))
         {
-            try { await _s3.DeleteAsync(dokument.StoragePfad); }
-            catch { /* Bereinigung ist optional, Löschen soll nicht scheitern. */ }
+            // APP-07-Fix: Schlägt das S3-Löschen fehl, wird der DB-Eintrag NICHT entfernt,
+            // sonst bliebe die Datei unauffindbar in S3 zurück (kein Verweis mehr in der DB).
+            try
+            {
+                await _s3.DeleteAsync(dokument.StoragePfad);
+            }
+            catch (Amazon.S3.AmazonS3Exception ex)
+            {
+                _logger.LogError(ex, "S3-Löschen des Rollendefinitions-Dokuments {Pfad} fehlgeschlagen.", dokument.StoragePfad);
+                return StatusCode(502, new { fehler = "Das Dokument konnte nicht aus dem Objektspeicher entfernt werden." });
+            }
         }
 
         _db.S3RolleDokumente.Remove(dokument);
