@@ -1,5 +1,6 @@
 using System.Security.Claims;
 using System.Text.Json;
+using BandSpirit.Api.Infrastructure;
 using BandSpirit.Api.Models;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
@@ -476,24 +477,13 @@ public class BandSpiritDbContext : DbContext
                     continue;
             }
 
-            // M2.2: Modul aus EntityType ableiten
+            // M2.2 / UI-19-Fix: Modul über den zentralen Katalog aus dem EntityType
+            // ableiten. Der vorherige Switch nutzte an drei Stellen C#-Typnamen, die
+            // es nie gab ("AppUser" statt "User", "RollenDefinition" statt
+            // "S3RollenDefinition", "BiGuideEintrag" statt "BIGuideNews") - diese
+            // Fälle trafen nie und fielen unbemerkt auf "System" zurück.
             var typeName = eintrag.Entity.GetType().Name;
-            var modul = typeName switch
-            {
-                "S3Circle" => "Kreis",
-                "S3Role" => "S3Rolle",
-                "S3PersonRoleAssignment" => "S3Rolle",
-                "KpiDefinition" => "KPI",
-                "KpiMeasurement" => "KPI",
-                "OKR" => "OKR",
-                "KeyResult" => "OKR",
-                "OkrZyklus" => "OKR",
-                "AppUser" => "Benutzer",
-                "RollenDefinition" => "Stammdaten",
-                "S3Meeting" => "Meeting",
-                "BiGuideEintrag" => "BI-Guide",
-                _ => "System"
-            };
+            var modul = AuditModul.VonEntityTypName(typeName);
 
             // M2.3: EntityName mit Klartext (Name/Titel) statt nur Typ-Name
             var nameEigenschaft = eintrag.Properties

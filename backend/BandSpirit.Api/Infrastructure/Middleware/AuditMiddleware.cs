@@ -49,9 +49,13 @@ public class AuditMiddleware
             var pfad = context.Request.Path.Value ?? "unbekannt";
             var (entityName, entityId) = ExtrahiereEntitaet(pfad);
 
+            // UI-19-Fix: Modul war zuvor der rohe Request-Pfad (inkl. GUIDs),
+            // wodurch praktisch jeder Eintrag einen eigenen, faktisch
+            // ungefilterbaren "Modul"-Wert hatte. Jetzt derselbe Katalog wie im
+            // DbContext-Änderungslog, damit Frontend-Filter beide Quellen erfassen.
             var log = new AppLog
             {
-                Modul = pfad,
+                Modul = AuditModul.VonRessourcenName(entityName),
                 Aktion = methode,
                 EntityName = entityName,
                 EntityId = entityId,

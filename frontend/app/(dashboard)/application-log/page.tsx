@@ -24,11 +24,22 @@ interface LogEntry {
   createdAt: string;
 }
 
+// UI-19-Fix: Vorher bot dieser Filter Werte an (LOGIN/KLIENT/KONTAKT/BENUTZER),
+// die der Backend-Audit-Writer nie tatsächlich schreibt (siehe
+// Infrastructure/AuditModul.cs - der gemeinsame Katalog, den sowohl
+// BandSpiritDbContext.SaveChanges als auch AuditMiddleware jetzt verwenden).
+// Diese Liste MUSS mit AuditModul.Alle synchron gehalten werden.
 const MODUL_LABELS: Record<string, string> = {
-  LOGIN: 'Login',
-  KLIENT: 'Klient',
-  KONTAKT: 'Kontakt',
-  BENUTZER: 'Benutzer',
+  Kreis: 'Kreis',
+  S3Rolle: 'Rolle',
+  KPI: 'KPI',
+  OKR: 'OKR',
+  Benutzer: 'Benutzer',
+  Stammdaten: 'Stammdaten',
+  Meeting: 'Meeting',
+  'BI-Guide': 'BI-Guide',
+  Auth: 'Anmeldung',
+  System: 'System',
 };
 
 const AKTION_COLORS: Record<string, string> = {
@@ -143,10 +154,9 @@ export default function ApplicationLogPage() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="_all">Alle Module</SelectItem>
-                  <SelectItem value="LOGIN">Login</SelectItem>
-                  <SelectItem value="KLIENT">Klient</SelectItem>
-                  <SelectItem value="KONTAKT">Kontakt</SelectItem>
-                  <SelectItem value="BENUTZER">Benutzer</SelectItem>
+                  {Object.entries(MODUL_LABELS).map(([wert, label]) => (
+                    <SelectItem key={wert} value={wert}>{label}</SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
