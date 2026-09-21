@@ -1,3 +1,4 @@
+using BandSpirit.Api.Infrastructure;
 using BandSpirit.Api.Infrastructure.Data;
 using BandSpirit.Api.Models;
 using Microsoft.AspNetCore.Authorization;
@@ -75,18 +76,12 @@ public class S3CircleLebenszyklenController : ODataController
         }
 
         _db.S3CircleLebenszyklen.Add(eintrag);
+        await _db.SaveChangesAsync();
 
-        // Denormalisierte "aktuelle Phase" am Kreis aktualisieren, sofern dieser
-        // Eintrag der jüngste (nach Startdatum) für den Kreis ist.
-        var neuestesStartdatum = await _db.S3CircleLebenszyklen
-            .Where(l => l.S3CircleId == eintrag.S3CircleId)
-            .Select(l => (DateTime?)l.StartDatum)
-            .MaxAsync();
-        if (neuestesStartdatum is null || eintrag.StartDatum >= neuestesStartdatum.Value)
-        {
-            circle.LifecyclePhase = phase.Name;
-        }
-
+        // APP-11-Fix: Denormalisierte "aktuelle Phase" am Kreis zentral aus der
+        // (jetzt gespeicherten) Historie neu ableiten, statt sie hier lokal zu
+        // berechnen - dieselbe Ableitung wird bei Patch/Delete/Umzug verwendet.
+        await KreisPhaseSynchronisation.AktualisierePhaseAsync(_db, eintrag.S3CircleId);
         await _db.SaveChangesAsync();
         return Created(eintrag);
     }
@@ -100,12 +95,23 @@ public class S3CircleLebenszyklenController : ODataController
         {
             return NotFound();
         }
+        var alteCircleId = eintrag.S3CircleId;
         delta.Patch(eintrag);
         if (eintrag.StartDatum == default)
         {
             return BadRequest(new { fehler = "Ein Startdatum ist erforderlich." });
         }
         eintrag.StartDatum = NormalizeUtc(eintrag.StartDatum);
+        await _db.SaveChangesAsync();
+
+        // APP-11-Fix: Nach Bearbeitung (Startdatum, Phase oder Umzug auf einen
+        // anderen Kreis) die angezeigte Phase auf beiden ggf. betroffenen
+        // Kreisen neu ableiten, sonst bleibt sie gegenüber der Historie stehen.
+        await KreisPhaseSynchronisation.AktualisierePhaseAsync(_db, eintrag.S3CircleId);
+        if (eintrag.S3CircleId != alteCircleId)
+        {
+            await KreisPhaseSynchronisation.AktualisierePhaseAsync(_db, alteCircleId);
+        }
         await _db.SaveChangesAsync();
         return Updated(eintrag);
     }
@@ -130,7 +136,13 @@ public class S3CircleLebenszyklenController : ODataController
         {
             return NotFound();
         }
+        var circleId = eintrag.S3CircleId;
         _db.S3CircleLebenszyklen.Remove(eintrag);
+        await _db.SaveChangesAsync();
+
+        // APP-11-Fix: Nach Löschen die angezeigte Phase neu ableiten - auch wenn
+        // dies der letzte verbleibende Eintrag war (Phase wird dann zurückgesetzt).
+        await KreisPhaseSynchronisation.AktualisierePhaseAsync(_db, circleId);
         await _db.SaveChangesAsync();
         return NoContent();
     }

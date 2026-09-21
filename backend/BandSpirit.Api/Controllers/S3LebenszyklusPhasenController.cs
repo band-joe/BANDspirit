@@ -1,3 +1,4 @@
+using BandSpirit.Api.Infrastructure;
 using BandSpirit.Api.Infrastructure.Data;
 using BandSpirit.Api.Models;
 using Microsoft.AspNetCore.Authorization;
@@ -70,8 +71,27 @@ public class S3LebenszyklusPhasenController : ODataController
         {
             return NotFound();
         }
+        var alterName = eintrag.Name;
         delta.Patch(eintrag);
         await _db.SaveChangesAsync();
+
+        // APP-11-Fix: Bei Umbenennung die denormalisierte Phasenanzeige aller
+        // Kreise nachziehen, deren jüngster Historien-Eintrag diese Phase nutzt -
+        // sonst zeigen sie weiterhin den alten Namen an.
+        if (eintrag.Name != alterName)
+        {
+            var betroffeneKreisIds = await _db.S3CircleLebenszyklen
+                .Where(l => l.LebenszyklusPhaseId == eintrag.Id)
+                .Select(l => l.S3CircleId)
+                .Distinct()
+                .ToListAsync();
+            foreach (var circleId in betroffeneKreisIds)
+            {
+                await KreisPhaseSynchronisation.AktualisierePhaseAsync(_db, circleId);
+            }
+            await _db.SaveChangesAsync();
+        }
+
         return Updated(eintrag);
     }
 
