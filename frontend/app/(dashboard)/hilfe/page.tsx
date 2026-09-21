@@ -830,6 +830,9 @@ function SucheTab() {
   const [loading, setLoading] = useState(false);
   const [searched, setSearched] = useState(false);
   const [filterTyp, setFilterTyp] = useState<string>('alle');
+  // UI-07-Fix: "Suche fehlgeschlagen" muss von "keine Treffer" unterscheidbar
+  // bleiben - beides ist sonst dieselbe leere Ergebnisliste.
+  const [searchError, setSearchError] = useState(false);
 
   const handleSearch = useCallback(async () => {
     const q = query.trim();
@@ -840,6 +843,7 @@ function SucheTab() {
     if (!session) return;
     setLoading(true);
     setSearched(true);
+    setSearchError(false);
     setFilterTyp('alle');
     try {
       // Globale Suche als parallele OData-Abfragen (BI-Guide-News + Support-Tickets).
@@ -874,6 +878,7 @@ function SucheTab() {
     } catch (e) {
       console.error(e);
       toast.error('Suche konnte nicht durchgeführt werden.');
+      setSearchError(true);
       setResults([]);
     } finally {
       setLoading(false);
@@ -928,7 +933,18 @@ function SucheTab() {
       {/* Results */}
       {searched && !loading && (
         <>
-          {results.length === 0 ? (
+          {searchError ? (
+            <Card>
+              <CardContent className="flex flex-col items-center justify-center py-12">
+                <AlertCircle className="h-12 w-12 text-amber-500 mb-3" />
+                <p className="text-muted-foreground font-medium">Suche konnte nicht durchgeführt werden</p>
+                <p className="text-sm text-muted-foreground mt-1">Die Daten sind derzeit nicht verfügbar oder es besteht keine Verbindung.</p>
+                <Button variant="outline" className="mt-4" onClick={handleSearch}>
+                  <SearchIcon className="h-4 w-4 mr-2" /> Erneut versuchen
+                </Button>
+              </CardContent>
+            </Card>
+          ) : results.length === 0 ? (
             <Card>
               <CardContent className="flex flex-col items-center justify-center py-12">
                 <SearchIcon className="h-12 w-12 text-muted-foreground/30 mb-3" />
