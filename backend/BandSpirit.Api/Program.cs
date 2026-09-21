@@ -43,6 +43,16 @@ try
     var odataModelBuilder = new ODataConventionModelBuilder();
     // SEC-M4: UserDto statt User exposieren (ohne Password-Hash)
     odataModelBuilder.EntitySet<UserDto>("Users");
+    // SEC-AUDIT-01: [JsonIgnore] auf User.Password/VerificationToken schützt nur die
+    // separate REST-JSON-Pipeline (AddJsonOptions), NICHT den OData-Formatter. Sobald
+    // eine andere Entität eine Navigation zu User besitzt (z. B.
+    // S3PersonRoleAssignment.User, benötigt fürs Anzeigen zugewiesener Mitglieder),
+    // wird die volle User-Entität inkl. BCrypt-Hash über $expand=...($expand=User)
+    // serialisiert - bestätigt für /odata/Roles?$expand=Assignments($expand=User),
+    // erreichbar mit der einfachen "User"-Rolle (RoleRead). Global auf dem EDM-Typ
+    // ignorieren wirkt unabhängig vom Navigationspfad, auch für künftige Relationen.
+    odataModelBuilder.EntityType<User>().Ignore(u => u.Password);
+    odataModelBuilder.EntityType<User>().Ignore(u => u.VerificationToken);
     odataModelBuilder.EntitySet<BenutzerRolle>("BenutzerRollen");
     odataModelBuilder.EntitySet<S3Circle>("Circles");
     odataModelBuilder.EntitySet<S3Role>("Roles");
