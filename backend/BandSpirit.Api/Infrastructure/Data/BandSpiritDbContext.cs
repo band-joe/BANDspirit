@@ -256,6 +256,13 @@ public class BandSpiritDbContext : DbContext
             e.HasOne(p => p.Role).WithMany(r => r.Assignments).HasForeignKey(p => p.RoleId).OnDelete(DeleteBehavior.Cascade);
         });
 
+        // ── SupportTicket (UI-11 / DB-01: FK auf Ersteller statt loser string) ──
+        modelBuilder.Entity<SupportTicket>(e =>
+        {
+            e.HasIndex(t => t.ErstellerId);
+            e.HasOne(t => t.Ersteller).WithMany().HasForeignKey(t => t.ErstellerId).OnDelete(DeleteBehavior.SetNull);
+        });
+
         // ── S3Meeting (Indizes) ───────────────────────────────────────────
         modelBuilder.Entity<S3Meeting>(e =>
         {

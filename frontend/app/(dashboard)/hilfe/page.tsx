@@ -38,9 +38,11 @@ interface SupportTicket {
   prioritaet: 'NIEDRIG' | 'MITTEL' | 'HOCH' | 'DRINGEND';
   kategorie: string | null;
   antwort: string | null;
-  createdById: string;
-  createdBy: { id: string; name: string; email: string };
-  assignedTo: { id: string; name: string; email: string } | null;
+  // UI-11-Fix: Backend liefert ein flaches erstellerName-Feld (Server-Join),
+  // keine verschachtelte createdBy/assignedTo-Objekte - die es serverseitig
+  // nie gab (SupportTicket kennt keine "assignedTo"-Zuweisung).
+  erstellerId: string | null;
+  erstellerName: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -317,7 +319,7 @@ function TicketRow({ ticket, canManage, isSelected, onClick, onUpdated }: {
             <p className="text-xs text-muted-foreground">
               {new Date(ticket.createdAt).toLocaleDateString('de-CH', { day: '2-digit', month: '2-digit', year: 'numeric' })}
             </p>
-            <p className="text-xs text-muted-foreground mt-0.5">{ticket.createdBy.name}</p>
+            <p className="text-xs text-muted-foreground mt-0.5">{ticket.erstellerName ?? 'Unbekannt'}</p>
             {ticket.antwort && (
               <MessageSquare className="h-3.5 w-3.5 text-[#3e8f88] mt-1 ml-auto" />
             )}
@@ -359,7 +361,7 @@ function TicketDetail({ ticket, canManage, onClose, onUpdated }: {
           <div>
             <CardTitle className="text-lg">#{ticket.id.slice(-6).toUpperCase()} – {ticket.titel}</CardTitle>
             <CardDescription>
-              Erstellt von {ticket.createdBy.name} am{' '}
+              Erstellt von {ticket.erstellerName ?? 'Unbekannt'} am{' '}
               {new Date(ticket.createdAt).toLocaleDateString('de-CH', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
             </CardDescription>
           </div>
