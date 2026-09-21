@@ -133,8 +133,11 @@ export default function BenutzerDetailPage() {
 
   const handleDeactivate = async () => {
     try {
-      // OData: Benutzer löschen (DELETE liefert 204 No Content)
-      await apiClient.delete(`/odata/Users(${id})`, session);
+      // UI-29-Fix: "Deaktivieren" muss reversibel sein (aktiv=false), nicht den
+      // Account per DELETE endgültig löschen. Ein Admin, der "Benutzer
+      // deaktivieren" bestätigt, erwartet laut Dialogtext eine Sperre, keine
+      // Löschung samt abhängiger Datensätze/Historie.
+      await apiClient.patch(`/odata/Users(${id})`, { aktiv: false }, session);
       toast({ title: 'Erfolg', description: 'Benutzer wurde deaktiviert' });
       fetchUser();
       setShowDeactivateConfirm(false);
@@ -150,7 +153,10 @@ export default function BenutzerDetailPage() {
 
   const isSelf = currentUserId === user.id;
   const canEdit = hasPermission(currentRole, 'user:update');
-  const canDelete = hasPermission(currentRole, 'user:delete') && !isSelf;
+  // UI-29-Fix: Deaktivieren ist jetzt ein PATCH (aktiv=false), keine Löschung
+  // mehr -> Backend prüft dafür user:update (UsersController.cs), nicht mehr
+  // user:delete.
+  const canDeactivate = hasPermission(currentRole, 'user:update') && !isSelf;
 
   return (
     <div className="space-y-6">
@@ -237,7 +243,7 @@ export default function BenutzerDetailPage() {
         </Card>
 
         <div className="space-y-6">
-          {canDelete && user.aktiv && (
+          {canDeactivate && user.aktiv && (
             <Card className="border-red-200">
               <CardContent className="pt-6">
                 {showDeactivateConfirm ? (
