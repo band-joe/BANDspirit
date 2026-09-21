@@ -111,11 +111,35 @@ public class BenutzerRollenController : ODataController
             return BadRequest(new { fehler = "Das System-Administrator-Kennzeichen kann nicht über die API vergeben werden." });
         }
 
+        var alterName = eintrag.Name;
         delta.Patch(eintrag);
         eintrag.Name = eintrag.Name?.Trim() ?? string.Empty;
         if (string.IsNullOrWhiteSpace(eintrag.Name))
         {
             return BadRequest(new { fehler = "Der Name der Benutzerrolle darf nicht leer sein." });
+        }
+
+        // DB-02-Fix: Eine Umbenennung liess Users.Role und RolePermissions.Role
+        // bisher unverändert stehen (beide referenzierten den Namen als reinen
+        // String, ohne Verknüpfung zur Benutzerrolle) - Mitgliedschaft und
+        // Berechtigungen liefen dadurch auf den alten, nicht mehr existierenden
+        // Namen ins Leere. Beide Tabellen werden jetzt über die stabile RoleId
+        // (nicht per Namensvergleich) gefunden und in derselben Transaktion
+        // auf den neuen Namen nachgezogen - alles oder nichts, damit bei einem
+        // Fehler nie ein inkonsistenter Zwischenzustand (Namen bereits
+        // nachgezogen, Umbenennung selbst aber nicht gespeichert) entstehen kann.
+        if (eintrag.Name != alterName)
+        {
+            await using var transaktion = await _db.Database.BeginTransactionAsync();
+            await _db.Users
+                .Where(u => u.RoleId == eintrag.Id)
+                .ExecuteUpdateAsync(s => s.SetProperty(u => u.Role, eintrag.Name));
+            await _db.RolePermissions
+                .Where(p => p.RoleId == eintrag.Id)
+                .ExecuteUpdateAsync(s => s.SetProperty(p => p.Role, eintrag.Name));
+            await _db.SaveChangesAsync();
+            await transaktion.CommitAsync();
+            return Updated(eintrag);
         }
 
         await _db.SaveChangesAsync();

@@ -23,6 +23,42 @@ public static class DataSeeder
             });
         }
 
+        // ── Applikations-Benutzerrollen (BenutzerRolle) ─────────────────────
+        // DB-02-Fix: Muss VOR dem Admin-Benutzer laufen (und sofort gespeichert
+        // werden), damit unten dessen stabile RoleId aufgelöst werden kann -
+        // ursprünglich stand dieser Block weiter unten, zu einem Zeitpunkt, an
+        // dem die Benutzerrollen-Katalogzeilen noch gar nicht in der Datenbank
+        // existierten (nur ein einziges SaveChangesAsync ganz am Ende).
+        // Werden idempotent nach Name angelegt. Die Namen sind identisch zu den
+        // bisherigen Rollenwerten in Users.Role sowie RolePermission.Role, damit
+        // JWT-Claims, RBAC und Middleware unverändert weiter funktionieren.
+        var standardBenutzerRollen = new (string Name, string Beschreibung, bool IstSystemAdmin, int SortOrder)[]
+        {
+            (BenutzerRollenNamen.Admin, "System-Administrator der Applikation mit Vollzugriff.", true,  1),
+            (BenutzerRollenNamen.User,  "Standard-Benutzer mit Grundrechten.",                   false, 2),
+        };
+
+        var vorhandeneBenutzerRollen = await db.BenutzerRollen
+            .Select(r => r.Name)
+            .ToListAsync();
+
+        foreach (var r in standardBenutzerRollen)
+        {
+            if (!vorhandeneBenutzerRollen.Contains(r.Name))
+            {
+                db.BenutzerRollen.Add(new BenutzerRolle
+                {
+                    Name = r.Name,
+                    Beschreibung = r.Beschreibung,
+                    IstSystemAdmin = r.IstSystemAdmin,
+                    SortOrder = r.SortOrder,
+                    Aktiv = true
+                });
+                logger.LogInformation("Benutzerrolle '{Name}' wurde angelegt.", r.Name);
+            }
+        }
+        await db.SaveChangesAsync();
+
         // ── Admin-Benutzer ─────────────────────────────────────────────────
         // Robust: legt den Admin an, falls er fehlt, und stellt bei bereits
         // vorhandenem Admin sicher, dass er aktiv ist und das in
@@ -32,6 +68,13 @@ public static class DataSeeder
         const string adminEmail = "admin@bandspirit.local";
         var adminPassword = config["DefaultAdminPassword"];
         var passwortKonfiguriert = !string.IsNullOrEmpty(adminPassword) && adminPassword != "PLACEHOLDER";
+
+        // DB-02-Fix: Stabile RoleId der "Admin"-Katalogzeile (jetzt garantiert
+        // vorhanden, siehe oben) für die folgenden Zuweisungen auflösen.
+        var adminRoleId = await db.BenutzerRollen
+            .Where(r => r.Name == BenutzerRollenNamen.Admin)
+            .Select(r => (Guid?)r.Id)
+            .FirstOrDefaultAsync();
 
         var admin = await db.Users.FirstOrDefaultAsync(u => u.Email == adminEmail);
         if (admin is null)
@@ -49,6 +92,7 @@ public static class DataSeeder
                 Email = adminEmail,
                 Password = BCrypt.Net.BCrypt.HashPassword(adminPassword),
                 Role = BenutzerRollenNamen.Admin,
+                RoleId = adminRoleId,
                 Aktiv = true,
                 // K81 führte Email-Verifizierung ein (ValidateCredentialsAsync lehnt
                 // EmailVerified=false ab). Ohne dies kann sich der dokumentierte
@@ -57,35 +101,46 @@ public static class DataSeeder
             });
             logger.LogInformation("Admin-Benutzer {Email} wurde angelegt.", adminEmail);
         }
-        else if (passwortKonfiguriert)
+        else
         {
-            // Vorhandenen Admin konsistent halten (nur wenn ein echtes Passwort konfiguriert ist).
+            // Vorhandenen Admin konsistent halten. RoleId wird IMMER
+            // nachgezogen (auch ohne konfiguriertes Passwort), da Bestandsdaten
+            // vor diesem Fix keine RoleId hatten.
             var geaendert = false;
 
-            if (!admin.Aktiv)
+            if (admin.RoleId != adminRoleId)
             {
-                admin.Aktiv = true;
+                admin.RoleId = adminRoleId;
                 geaendert = true;
             }
 
-            if (!admin.EmailVerified)
+            if (passwortKonfiguriert)
             {
-                admin.EmailVerified = true;
-                geaendert = true;
-                logger.LogWarning("Admin-Konto war nicht als E-Mail-verifiziert markiert (K81) – korrigiert, sonst wäre kein Login möglich.");
-            }
+                if (!admin.Aktiv)
+                {
+                    admin.Aktiv = true;
+                    geaendert = true;
+                }
 
-            if (admin.Role != BenutzerRollenNamen.Admin)
-            {
-                admin.Role = BenutzerRollenNamen.Admin;
-                geaendert = true;
-            }
+                if (!admin.EmailVerified)
+                {
+                    admin.EmailVerified = true;
+                    geaendert = true;
+                    logger.LogWarning("Admin-Konto war nicht als E-Mail-verifiziert markiert (K81) – korrigiert, sonst wäre kein Login möglich.");
+                }
 
-            if (string.IsNullOrEmpty(admin.Password) || !BCrypt.Net.BCrypt.Verify(adminPassword, admin.Password))
-            {
-                admin.Password = BCrypt.Net.BCrypt.HashPassword(adminPassword);
-                geaendert = true;
-                logger.LogWarning("Admin-Passwort wurde auf den in DefaultAdminPassword konfigurierten Wert (zurück-)gesetzt.");
+                if (admin.Role != BenutzerRollenNamen.Admin)
+                {
+                    admin.Role = BenutzerRollenNamen.Admin;
+                    geaendert = true;
+                }
+
+                if (string.IsNullOrEmpty(admin.Password) || !BCrypt.Net.BCrypt.Verify(adminPassword, admin.Password))
+                {
+                    admin.Password = BCrypt.Net.BCrypt.HashPassword(adminPassword);
+                    geaendert = true;
+                    logger.LogWarning("Admin-Passwort wurde auf den in DefaultAdminPassword konfigurierten Wert (zurück-)gesetzt.");
+                }
             }
 
             if (geaendert)
@@ -139,7 +194,7 @@ public static class DataSeeder
 
         // ── Bereinigung: "Administrator" ist KEINE soziokratische S3-Rolle ──
         // "Administrator" wurde früher fälschlich in den S3-Rollenkatalog
-        // aufgenommen. Er gehört zu den Applikations-Benutzerrollen (siehe unten)
+        // aufgenommen. Er gehört zu den Applikations-Benutzerrollen (siehe oben)
         // und wird hier aus S3RollenDefinitionen entfernt. Wird die Rolle noch von
         // einer S3Role referenziert, wird sie zur Wahrung der Datenintegrität nur
         // inaktiv gesetzt (Soft-Delete) statt hart gelöscht.
@@ -194,36 +249,6 @@ public static class DataSeeder
                     Aktiv = true
                 });
                 logger.LogInformation("Lebenszyklus-Phase '{Name}' wurde angelegt.", p.Name);
-            }
-        }
-
-        // ── Applikations-Benutzerrollen (BenutzerRolle) ─────────────────────
-        // Werden idempotent nach Name angelegt. Die Namen sind identisch zu den
-        // bisherigen Rollenwerten in Users.Role sowie RolePermission.Role, damit
-        // JWT-Claims, RBAC und Middleware unverändert weiter funktionieren.
-        var standardBenutzerRollen = new (string Name, string Beschreibung, bool IstSystemAdmin, int SortOrder)[]
-        {
-            (BenutzerRollenNamen.Admin, "System-Administrator der Applikation mit Vollzugriff.", true,  1),
-            (BenutzerRollenNamen.User,  "Standard-Benutzer mit Grundrechten.",                   false, 2),
-        };
-
-        var vorhandeneBenutzerRollen = await db.BenutzerRollen
-            .Select(r => r.Name)
-            .ToListAsync();
-
-        foreach (var r in standardBenutzerRollen)
-        {
-            if (!vorhandeneBenutzerRollen.Contains(r.Name))
-            {
-                db.BenutzerRollen.Add(new BenutzerRolle
-                {
-                    Name = r.Name,
-                    Beschreibung = r.Beschreibung,
-                    IstSystemAdmin = r.IstSystemAdmin,
-                    SortOrder = r.SortOrder,
-                    Aktiv = true
-                });
-                logger.LogInformation("Benutzerrolle '{Name}' wurde angelegt.", r.Name);
             }
         }
 

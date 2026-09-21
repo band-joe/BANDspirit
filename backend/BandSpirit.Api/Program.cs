@@ -499,8 +499,13 @@ try
             try
             {
                 await db.Database.MigrateAsync();
-                await RolePermissionSeeder.SeedAsync(db);
+                // DB-02-Fix: DataSeeder muss zuerst laufen - es legt jetzt (u. a.)
+                // den BenutzerRollen-Katalog an, dessen stabile IDs
+                // RolePermissionSeeder anschliessend für RolePermission.RoleId
+                // auflöst. Vorher lief RolePermissionSeeder zuerst und hätte auf
+                // einer frischen Datenbank noch keinen Katalog vorgefunden.
                 await DataSeeder.SeedAsync(db, cfg, logger);
+                await RolePermissionSeeder.SeedAsync(db);
                 Log.Information("Datenbank migriert und Seed-Daten angelegt.");
             }
             catch (Exception ex)

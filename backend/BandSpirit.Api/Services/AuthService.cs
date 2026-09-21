@@ -50,6 +50,15 @@ public class AuthService
             throw new InvalidOperationException("E-Mail-Adresse ist bereits vergeben.");
         }
 
+        // DB-02-Fix: Stabile RoleId zusätzlich zum Namen auflösen. Die
+        // Katalog-Zeile "User" wird von RolePermissionSeeder angelegt und
+        // sollte daher immer existieren; falls (noch) nicht, bleibt RoleId
+        // null statt fehlzuschlagen - Autorisierung liest weiterhin den Namen.
+        var userRoleId = await _db.BenutzerRollen
+            .Where(r => r.Name == BenutzerRollenNamen.User)
+            .Select(r => (Guid?)r.Id)
+            .FirstOrDefaultAsync();
+
         var user = new User
         {
             Name = name,
@@ -57,6 +66,7 @@ public class AuthService
             Password = BCrypt.Net.BCrypt.HashPassword(passwort),
             // SEC-M1: Rolle serverseitig erzwingen – NIEMALS den Client-Wert übernehmen!
             Role = BenutzerRollenNamen.User,
+            RoleId = userRoleId,
             Aktiv = true,
             // K81: Email nicht verifiziert – Login erst nach Bestätigung möglich
             EmailVerified = false
