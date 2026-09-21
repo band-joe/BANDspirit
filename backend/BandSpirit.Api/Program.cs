@@ -55,7 +55,10 @@ try
     odataModelBuilder.EntitySet<KpiDefinition>("KpiDefinitions");
     odataModelBuilder.EntitySet<KpiMeasurement>("KpiMeasurements");
     odataModelBuilder.EntitySet<OkrZyklus>("OkrZyklen");
-    odataModelBuilder.EntitySet<SupportTicket>("SupportTickets");
+    // UI-11 (P005): SupportTicketDto statt roher Entität - flaches ErstellerName-Feld
+    // per Server-Join, ohne die volle User-Entität (Passwort-Hash!) über $expand
+    // zugänglich zu machen (siehe SupportTicket.Ersteller-Kommentar).
+    odataModelBuilder.EntitySet<SupportTicketDto>("SupportTickets");
     odataModelBuilder.EntitySet<FAQ>("FAQs");
     odataModelBuilder.EntitySet<BIKompassVersion>("BiKompassVersions");
     odataModelBuilder.EntitySet<BIGuideNews>("BiGuideNews");
