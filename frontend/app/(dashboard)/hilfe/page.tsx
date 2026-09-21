@@ -26,7 +26,7 @@ import {
   AlertCircle, Clock, CheckCircle2, MessageSquare, Send, Loader2, Pencil, Trash2,
   SearchIcon, ExternalLink, Users, ClipboardList, Building2, FileText, Receipt, Contact, Calendar, Target, LifeBuoy, Newspaper, CircleDot, BookOpen, UserCog, Briefcase,
 } from 'lucide-react';
-import { toast } from '@/hooks/use-toast';
+import { toast } from 'sonner';
 import Link from 'next/link';
 
 // ---- Types ----
@@ -357,7 +357,7 @@ function TicketDetail({ ticket, canManage, onClose, onUpdated }: {
     setSaving(true);
     try {
       await apiClient.patch(`/odata/SupportTickets(${ticket.id})`, { status, antwort: antwort || null }, session);
-      toast({ title: 'Ticket aktualisiert' });
+      toast.success('Ticket aktualisiert');
       onUpdated();
     } catch (err: unknown) {
       setSaveError(err instanceof ApiError ? err.message : 'Netzwerkfehler – bitte versuchen Sie es erneut.');
@@ -460,7 +460,7 @@ function CreateTicketForm({ onSuccess, onCancel }: { onSuccess: () => void; onCa
         { titel: titel.trim(), beschreibung: beschreibung.trim(), prioritaet, kategorie: kategorie || null },
         session
       );
-      toast({ title: 'Ticket erstellt', description: 'Ihr Support-Ticket wurde erfolgreich erstellt.' });
+      toast.success('Ihr Support-Ticket wurde erfolgreich erstellt.');
       onSuccess();
     } catch (err: unknown) {
       setFooterError(err instanceof ApiError ? err.message : 'Netzwerkfehler – bitte versuchen Sie es erneut.');
@@ -568,10 +568,10 @@ function FAQTab({ canManage }: { canManage: boolean }) {
     if (!confirm('FAQ wirklich löschen?')) return;
     try {
       await apiClient.delete(`/odata/FAQs(${id})`, session);
-      toast({ title: 'FAQ gelöscht' });
+      toast.success('FAQ gelöscht');
       loadFaqs();
     } catch {
-      toast({ title: 'Fehler', variant: 'destructive' });
+      toast.error('Fehler');
     }
   };
 
@@ -704,7 +704,7 @@ function FAQForm({ faq, onSuccess, onCancel }: { faq: FAQ | null; onSuccess: () 
 
   const handleSubmit = async () => {
     if (!frage.trim() || !antwort.trim()) {
-      toast({ title: 'Bitte Frage und Antwort ausfüllen', variant: 'destructive' });
+      toast.error('Bitte Frage und Antwort ausfüllen');
       return;
     }
     setSubmitting(true);
@@ -715,10 +715,10 @@ function FAQForm({ faq, onSuccess, onCancel }: { faq: FAQ | null; onSuccess: () 
       } else {
         await apiClient.post('/odata/FAQs', body, session);
       }
-      toast({ title: faq ? 'FAQ aktualisiert' : 'FAQ erstellt' });
+      toast.success(faq ? 'FAQ aktualisiert' : 'FAQ erstellt');
       onSuccess();
     } catch (err: unknown) {
-      toast({ title: 'Fehler', description: err instanceof ApiError ? err.message : 'Netzwerkfehler', variant: 'destructive' });
+      toast.error(err instanceof ApiError ? err.message : 'Netzwerkfehler');
     } finally {
       setSubmitting(false);
     }
@@ -834,7 +834,7 @@ function SucheTab() {
   const handleSearch = useCallback(async () => {
     const q = query.trim();
     if (q.length < 2) {
-      toast({ title: 'Hinweis', description: 'Bitte mindestens 2 Zeichen eingeben.', variant: 'destructive' });
+      toast.warning('Bitte mindestens 2 Zeichen eingeben.');
       return;
     }
     if (!session) return;
@@ -873,7 +873,7 @@ function SucheTab() {
       setResults(mapped);
     } catch (e) {
       console.error(e);
-      toast({ title: 'Fehler', description: 'Suche konnte nicht durchgeführt werden.', variant: 'destructive' });
+      toast.error('Suche konnte nicht durchgeführt werden.');
       setResults([]);
     } finally {
       setLoading(false);

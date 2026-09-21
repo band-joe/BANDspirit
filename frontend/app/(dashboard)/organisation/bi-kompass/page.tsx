@@ -8,7 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { useToast } from '@/hooks/use-toast';
+import { toast } from 'sonner';
 import { hasPermission } from '@/lib/rbac';
 import { formatDate } from '@/lib/utils';
 import { apiClient, getToken } from '@/lib/api-client';
@@ -170,7 +170,6 @@ function reassembleMarkdown(chapters: Chapter[]): string {
 // ──────────────────────────────────────────
 export default function BIKompassPage() {
   const { data: session } = useSession() || {};
-  const { toast } = useToast();
 
   // Data state
   const [aktiveVersion, setAktiveVersion] = useState<BIKompassVersion | null>(null);
@@ -286,7 +285,7 @@ export default function BIKompassPage() {
     );
     setEditingChapter(null);
     setHasChanges(true);
-    toast({ title: 'Kapitel aktualisiert', description: 'Änderung vorgemerkt. Vergessen Sie nicht, die neue Version zu veröffentlichen.' });
+    toast.success('Änderung vorgemerkt. Vergessen Sie nicht, die neue Version zu veröffentlichen.');
   };
 
   const cancelChapterEdit = () => {
@@ -299,7 +298,7 @@ export default function BIKompassPage() {
     setChapters(originalChapters);
     setHasChanges(false);
     setEditingChapter(null);
-    toast({ title: 'Änderungen verworfen', description: 'Alle Änderungen wurden zurückgesetzt.' });
+    toast.success('Alle Änderungen wurden zurückgesetzt.');
   };
 
   // ── Full-document editing ─────────────────
@@ -315,10 +314,7 @@ export default function BIKompassPage() {
     setChapters(newChapters);
     setHasChanges(true);
     setFullEditMode(false);
-    toast({
-      title: 'Dokument aktualisiert',
-      description: 'Änderungen vorgemerkt. Vergessen Sie nicht, die neue Version zu veröffentlichen.',
-    });
+    toast.success('Änderungen vorgemerkt. Vergessen Sie nicht, die neue Version zu veröffentlichen.');
   };
 
   const cancelFullEdit = () => {
@@ -366,14 +362,11 @@ export default function BIKompassPage() {
       const newChapters = parseChapters(data.markdown);
       setChapters(newChapters);
       setHasChanges(true);
-      toast({
-        title: 'PDF erfolgreich verarbeitet',
-        description: `${file.name} — ${newChapters.filter(c => c.number !== 'header' && c.number !== 'toc').length} Kapitel extrahiert. Bitte prüfen und als neue Version veröffentlichen.`,
-      });
+      toast.success(`${file.name} — ${newChapters.filter(c => c.number !== 'header' && c.number !== 'toc').length} Kapitel extrahiert. Bitte prüfen und als neue Version veröffentlichen.`);
     } catch (error: unknown) {
       const msg = error instanceof Error ? error.message : 'Fehler bei der PDF-Verarbeitung.';
       setUploadError(msg);
-      toast({ title: 'Upload fehlgeschlagen', description: msg, variant: 'destructive' });
+      toast.error(msg);
     } finally {
       setUploading(false);
     }
@@ -398,11 +391,11 @@ export default function BIKompassPage() {
 
   const doPublish = async () => {
     if (!publishVersion.trim()) {
-      toast({ title: 'Fehler', description: 'Versionsnummer erforderlich.', variant: 'destructive' });
+      toast.error('Versionsnummer erforderlich.');
       return;
     }
     if (!publishAenderungen.trim()) {
-      toast({ title: 'Fehler', description: 'Bitte beschreiben Sie die Änderungen.', variant: 'destructive' });
+      toast.error('Bitte beschreiben Sie die Änderungen.');
       return;
     }
     setSaving(true);
@@ -422,7 +415,7 @@ export default function BIKompassPage() {
         },
         session
       );
-      toast({ title: 'Veröffentlicht', description: `Version ${publishVersion} wurde erfolgreich veröffentlicht.` });
+      toast.success(`Version ${publishVersion} wurde erfolgreich veröffentlicht.`);
       setPublishing(false);
       setHasChanges(false);
       // Zuerst neue Daten laden, dann chapters zurücksetzen (vermeidet kurzes "Kein Inhalt")
@@ -430,7 +423,7 @@ export default function BIKompassPage() {
       setChapters([]);
     } catch (error: unknown) {
       const msg = error instanceof ApiError ? error.message : error instanceof Error ? error.message : 'Speichern fehlgeschlagen';
-      toast({ title: 'Fehler', description: msg, variant: 'destructive' });
+      toast.error(msg);
     } finally {
       setSaving(false);
     }

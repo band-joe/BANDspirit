@@ -18,7 +18,7 @@ import {
 import {
   Table, TableHeader, TableBody, TableHead, TableRow, TableCell,
 } from '@/components/ui/table';
-import { useToast } from '@/hooks/use-toast';
+import { toast } from 'sonner';
 import { apiClient, getToken } from '@/lib/api-client';
 import { Mails, Plus, Pencil, Trash2, Download, Loader2, Users } from 'lucide-react';
 
@@ -55,7 +55,6 @@ const TYP_LABEL: Record<Typ, string> = {
 
 export default function MailVerteilerPage() {
   const { data: session } = useSession() || {};
-  const { toast } = useToast();
 
   const [liste, setListe] = useState<VerteilerListe[]>([]);
   const [auswahl, setAuswahl] = useState<Auswahl>({ kreise: [], rollen: [], benutzer: [] });
@@ -87,11 +86,11 @@ export default function MailVerteilerPage() {
       setListe(l);
       setAuswahl(a);
     } catch {
-      toast({ title: 'Fehler', description: 'Die Verteiler konnten nicht geladen werden.', variant: 'destructive' });
+      toast.error('Die Verteiler konnten nicht geladen werden.');
     } finally {
       setLaedt(false);
     }
-  }, [session, toast]);
+  }, [session]);
 
   useEffect(() => { ladeDaten(); }, [ladeDaten]);
 
@@ -123,7 +122,7 @@ export default function MailVerteilerPage() {
       setBenutzerIds(d.benutzerIds ?? []);
       setDialogOffen(true);
     } catch {
-      toast({ title: 'Fehler', description: 'Der Verteiler konnte nicht geladen werden.', variant: 'destructive' });
+      toast.error('Der Verteiler konnte nicht geladen werden.');
     }
   };
 
@@ -134,19 +133,19 @@ export default function MailVerteilerPage() {
   const speichern = async () => {
     if (!session) return;
     if (!name.trim()) {
-      toast({ title: 'Hinweis', description: 'Bitte einen Namen eingeben.', variant: 'destructive' });
+      toast.warning('Bitte einen Namen eingeben.');
       return;
     }
     if (typ === 'Kreis' && !kreisId) {
-      toast({ title: 'Hinweis', description: 'Bitte einen Kreis wählen.', variant: 'destructive' });
+      toast.warning('Bitte einen Kreis wählen.');
       return;
     }
     if (typ === 'Rolle' && !rolleId) {
-      toast({ title: 'Hinweis', description: 'Bitte eine Rolle wählen.', variant: 'destructive' });
+      toast.warning('Bitte eine Rolle wählen.');
       return;
     }
     if (typ === 'Individuell' && benutzerIds.length === 0) {
-      toast({ title: 'Hinweis', description: 'Bitte mindestens einen Benutzer wählen.', variant: 'destructive' });
+      toast.warning('Bitte mindestens einen Benutzer wählen.');
       return;
     }
 
@@ -163,10 +162,10 @@ export default function MailVerteilerPage() {
       setSpeichert(true);
       if (bearbeitungsId) {
         await apiClient.put(`/api/mailverteiler/${bearbeitungsId}`, body, session);
-        toast({ title: 'Gespeichert', description: 'Der Verteiler wurde aktualisiert.' });
+        toast.success('Der Verteiler wurde aktualisiert.');
       } else {
         await apiClient.post('/api/mailverteiler', body, session);
-        toast({ title: 'Erstellt', description: 'Der Verteiler wurde angelegt.' });
+        toast.success('Der Verteiler wurde angelegt.');
       }
       setDialogOffen(false);
       formularZuruecksetzen();
@@ -175,7 +174,7 @@ export default function MailVerteilerPage() {
       const msg = e?.status === 409
         ? 'Es existiert bereits ein Verteiler mit diesem Namen.'
         : 'Der Verteiler konnte nicht gespeichert werden.';
-      toast({ title: 'Fehler', description: msg, variant: 'destructive' });
+      toast.error(msg);
     } finally {
       setSpeichert(false);
     }
@@ -185,11 +184,11 @@ export default function MailVerteilerPage() {
     if (!session || !loeschId) return;
     try {
       await apiClient.delete(`/api/mailverteiler/${loeschId}`, session);
-      toast({ title: 'Gelöscht', description: 'Der Verteiler wurde entfernt.' });
+      toast.success('Der Verteiler wurde entfernt.');
       setLoeschId(null);
       await ladeDaten();
     } catch {
-      toast({ title: 'Fehler', description: 'Der Verteiler konnte nicht gelöscht werden.', variant: 'destructive' });
+      toast.error('Der Verteiler konnte nicht gelöscht werden.');
     }
   };
 
@@ -212,9 +211,9 @@ export default function MailVerteilerPage() {
       a.click();
       a.remove();
       window.URL.revokeObjectURL(url);
-      toast({ title: 'Export', description: 'Die Outlook-CSV-Datei wurde heruntergeladen.' });
+      toast.success('Die Outlook-CSV-Datei wurde heruntergeladen.');
     } catch {
-      toast({ title: 'Fehler', description: 'Der Export ist fehlgeschlagen.', variant: 'destructive' });
+      toast.error('Der Export ist fehlgeschlagen.');
     } finally {
       setExportiert(null);
     }

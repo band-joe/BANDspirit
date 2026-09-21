@@ -5,7 +5,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { X, Plus, Tag, Check } from 'lucide-react';
-import { useToast } from '@/hooks/use-toast';
+import { toast } from 'sonner';
 
 interface KontaktTag {
   id: string;
@@ -22,7 +22,6 @@ interface KontaktTagSelectorProps {
 }
 
 export default function KontaktTagSelector({ selectedTagIds, onChange, disabled = false, compact = false }: KontaktTagSelectorProps) {
-  const { toast } = useToast();
   const [allTags, setAllTags] = useState<KontaktTag[]>([]);
   const [showDropdown, setShowDropdown] = useState(false);
   const [newTagName, setNewTagName] = useState('');
@@ -75,9 +74,9 @@ export default function KontaktTagSelector({ selectedTagIds, onChange, disabled 
       setAllTags(prev => [...prev, tag].sort((a, b) => a.bezeichnung.localeCompare(b.bezeichnung)));
       onChange([...selectedTagIds, tag.id]);
       setNewTagName('');
-      toast({ title: 'Tag erstellt', description: `"${tag.bezeichnung}" wurde angelegt.` });
+      toast.success(`"${tag.bezeichnung}" wurde angelegt.`);
     } catch (err: any) {
-      toast({ title: 'Fehler', description: err?.message ?? 'Tag konnte nicht erstellt werden.', variant: 'destructive' });
+      toast.error(err?.message ?? 'Tag konnte nicht erstellt werden.');
     } finally {
       setCreating(false);
     }

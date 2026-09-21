@@ -15,7 +15,7 @@ import { hasPermission, getRoleLabel } from '@/lib/rbac';
 import { apiClient } from '@/lib/api-client';
 import { ODataResponse } from '@/lib/odata';
 import { formatDate } from '@/lib/utils';
-import { useToast } from '@/hooks/use-toast';
+import { toast } from 'sonner';
 import Link from 'next/link';
 
 interface UserDetail {
@@ -59,7 +59,6 @@ function InfoRow({ label, value, icon }: { label: string; value: React.ReactNode
 export default function BenutzerDetailPage() {
   const { id } = useParams();
   const router = useRouter();
-  const { toast } = useToast();
   const { data: session } = useSession() || {};
   const currentRole = (session?.user as any)?.role;
   const currentUserId = (session?.user as any)?.id;
@@ -105,7 +104,7 @@ export default function BenutzerDetailPage() {
       setFormAktiv(data.aktiv);
       setFormAbacusPersonalnummer(data.abacusPersonalnummer || '');
     } catch {
-      toast({ title: 'Fehler', description: 'Benutzer nicht gefunden', variant: 'destructive' });
+      toast.error('Benutzer nicht gefunden');
       router.push('/benutzer');
     } finally {
       setLoading(false);
@@ -120,12 +119,12 @@ export default function BenutzerDetailPage() {
 
       // OData: Benutzer per PATCH aktualisieren
       await apiClient.patch(`/odata/Users(${id})`, body, session);
-      toast({ title: 'Erfolg', description: 'Benutzer wurde aktualisiert' });
+      toast.success('Benutzer wurde aktualisiert');
       setEditing(false);
       setFormPassword('');
       fetchUser();
     } catch {
-      toast({ title: 'Fehler', description: 'Aktualisierung fehlgeschlagen', variant: 'destructive' });
+      toast.error('Aktualisierung fehlgeschlagen');
     } finally {
       setSaving(false);
     }
@@ -138,11 +137,11 @@ export default function BenutzerDetailPage() {
       // deaktivieren" bestätigt, erwartet laut Dialogtext eine Sperre, keine
       // Löschung samt abhängiger Datensätze/Historie.
       await apiClient.patch(`/odata/Users(${id})`, { aktiv: false }, session);
-      toast({ title: 'Erfolg', description: 'Benutzer wurde deaktiviert' });
+      toast.success('Benutzer wurde deaktiviert');
       fetchUser();
       setShowDeactivateConfirm(false);
     } catch {
-      toast({ title: 'Fehler', description: 'Deaktivierung fehlgeschlagen', variant: 'destructive' });
+      toast.error('Deaktivierung fehlgeschlagen');
     }
   };
 

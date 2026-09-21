@@ -19,13 +19,12 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import { ArrowLeft, UserPlus, AlertCircle } from 'lucide-react';
-import { useToast } from '@/hooks/use-toast';
+import { toast } from 'sonner';
 import Link from 'next/link';
 
 export default function NeuerBenutzerPage() {
   const router = useRouter();
   const { data: session } = useSession();
-  const { toast } = useToast();
   const [saving, setSaving] = useState(false);
   const [footerError, setFooterError] = useState<string | null>(null);
   const [rollen, setRollen] = useState<BenutzerRolleOption[]>([]);
@@ -94,7 +93,7 @@ export default function NeuerBenutzerPage() {
     try {
       // OData: neuen Benutzer anlegen; POST liefert das erstellte Objekt zurück
       const data = await apiClient.post<any>('/odata/Users', form, session);
-      toast({ title: 'Erfolg', description: 'Benutzer wurde erfolgreich erstellt' });
+      toast.success('Benutzer wurde erfolgreich erstellt');
       router.push(`/benutzer/${data.Id ?? data.id}`);
     } catch (e) {
       if (e instanceof ApiError) {

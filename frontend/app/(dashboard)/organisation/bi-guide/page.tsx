@@ -20,7 +20,7 @@ import { motion } from 'framer-motion';
 import {
   Plus, Search, Pin, Edit2, Trash2, Newspaper, ChevronDown, ChevronUp, Loader2, AlertCircle,
 } from 'lucide-react';
-import { toast } from '@/hooks/use-toast';
+import { toast } from 'sonner';
 
 interface BIGuideNews {
   id: string;
@@ -76,7 +76,7 @@ export default function BIGuidePage() {
       setNews(data.value ?? []);
     } catch (e) {
       console.error(e);
-      toast({ title: 'Fehler', description: 'News konnten nicht geladen werden.', variant: 'destructive' });
+      toast.error('News konnten nicht geladen werden.');
     } finally {
       setLoading(false);
     }
@@ -90,7 +90,7 @@ export default function BIGuidePage() {
       setKategorien(data.value ?? []);
     } catch (e) {
       console.error(e);
-      toast({ title: 'Fehler', description: 'Kategorien konnten nicht geladen werden.', variant: 'destructive' });
+      toast.error('Kategorien konnten nicht geladen werden.');
     }
   }, [session]);
 
@@ -135,7 +135,7 @@ export default function BIGuidePage() {
         // Nachricht über OData erstellen
         await apiClient.post('/odata/BiGuideNews', formData, session);
       }
-      toast({ title: 'Erfolg', description: isEdit ? 'Nachricht aktualisiert.' : 'Nachricht erstellt.' });
+      toast.success(isEdit ? 'Nachricht aktualisiert.' : 'Nachricht erstellt.');
       setDialogOpen(false);
       fetchNews();
     } catch (error: unknown) {
@@ -156,12 +156,12 @@ export default function BIGuidePage() {
     try {
       // Nachricht über OData löschen
       await apiClient.delete(`/odata/BiGuideNews(${deleteId})`, session);
-      toast({ title: 'Erfolg', description: 'News gelöscht.' });
+      toast.success('News gelöscht.');
       setDeleteDialogOpen(false);
       setDeleteId(null);
       fetchNews();
     } catch (error: unknown) {
-      toast({ title: 'Fehler', description: error instanceof Error ? error.message : 'Fehler beim Löschen', variant: 'destructive' });
+      toast.error(error instanceof Error ? error.message : 'Fehler beim Löschen');
     } finally {
       setDeleting(false);
     }
