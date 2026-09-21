@@ -124,6 +124,12 @@ public class BandSpiritDbContext : DbContext
         {
             e.HasIndex(t => t.Token).IsUnique();
             e.HasIndex(t => t.UserId);
+            // DB-01-Fix: UserId war bisher nur indiziert, nicht als FK
+            // erzwungen und konnte auf einen nicht (mehr) existierenden
+            // Benutzer zeigen. Kein Navigationsproperty nötig/gewünscht -
+            // Tokens sind ohnehin kein OData-EntitySet. Cascade, da ein
+            // Reset-Token ohne zugehörigen Benutzer bedeutungslos ist.
+            e.HasOne<User>().WithMany().HasForeignKey(t => t.UserId).OnDelete(DeleteBehavior.Cascade);
         });
 
         // ── RefreshToken (APP-02: Session-Timeout) ─────────────────────────
@@ -284,6 +290,21 @@ public class BandSpiritDbContext : DbContext
             e.HasOne(p => p.Decision).WithOne(d => d.Proposal!).HasForeignKey<S3Decision>(d => d.ProposalId).OnDelete(DeleteBehavior.Cascade);
         });
 
+        // DB-01-Fix: S3Objections.UserId (der einwendende Benutzer) hatte
+        // bisher gar keine FK-Konfiguration und konnte auf einen nicht (mehr)
+        // existierenden Benutzer zeigen. Kein Navigationsproperty, damit über
+        // das OData-EntitySet "Objections" niemals versehentlich die rohe
+        // User-Entität (Passwort-Hash) per $expand erreichbar wird. Restrict
+        // statt Cascade/SetNull: Ein Einwand ist Teil der dauerhaften
+        // Governance-Historie und soll nicht durch das Löschen des Urhebers
+        // verschwinden oder anonymisiert werden - in der Praxis werden
+        // Benutzer ohnehin deaktiviert statt hart gelöscht (siehe UI-29).
+        modelBuilder.Entity<S3Objection>(e =>
+        {
+            e.HasIndex(o => o.UserId);
+            e.HasOne<User>().WithMany().HasForeignKey(o => o.UserId).OnDelete(DeleteBehavior.Restrict);
+        });
+
         // ── S3Driver / SpannungWorkItem ───────────────────────────────────
         modelBuilder.Entity<S3Driver>(e =>
         {
@@ -334,6 +355,14 @@ public class BandSpiritDbContext : DbContext
                 .WithOne(m => m.MailVerteiler!)
                 .HasForeignKey(m => m.MailVerteilerId)
                 .OnDelete(DeleteBehavior.Cascade);
+            // DB-01-Fix: S3CircleId/S3RollenDefinitionId (je nach Variante
+            // "Kreis"/"Rolle", siehe MailVerteilerTypen) hatten bisher keine
+            // FK-Konfiguration. SetNull statt Cascade: Der Verteiler selbst
+            // (inkl. Name/Beschreibung) bleibt bei Löschung des referenzierten
+            // Kreises/der Rollendefinition erhalten, verliert nur die
+            // konkrete Zielreferenz, statt komplett mitgelöscht zu werden.
+            e.HasOne<S3Circle>().WithMany().HasForeignKey(v => v.S3CircleId).OnDelete(DeleteBehavior.SetNull);
+            e.HasOne<S3RollenDefinition>().WithMany().HasForeignKey(v => v.S3RollenDefinitionId).OnDelete(DeleteBehavior.SetNull);
         });
 
         // ── MailVerteilerBenutzer (Zuordnung → Benutzer) ──────────────────
