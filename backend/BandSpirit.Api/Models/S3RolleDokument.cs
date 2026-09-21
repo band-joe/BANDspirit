@@ -5,14 +5,8 @@ public class S3RolleDokument : AuditableEntity
 {
     public Guid Id { get; set; } = Guid.NewGuid();
 
-    /// <summary>ID der zugehörigen Rolleninstanz (optional, historisch – neue Einträge hängen an der Rollendefinition).</summary>
-    public Guid? RoleId { get; set; }
-
-    /// <summary>Zugehörige Rolleninstanz (Navigation).</summary>
-    public S3Role? Role { get; set; }
-
     /// <summary>ID der zugehörigen Rollendefinition (Einstellungen → Rollen).</summary>
-    public Guid? RollenDefinitionId { get; set; }
+    public Guid RollenDefinitionId { get; set; }
 
     /// <summary>Zugehörige Rollendefinition (Navigation).</summary>
     public S3RollenDefinition? RollenDefinition { get; set; }

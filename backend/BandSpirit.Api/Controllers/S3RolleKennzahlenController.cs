@@ -35,12 +35,6 @@ public class S3RolleKennzahlenController : ODataController
     }
 
     /// <summary>POST – Neue Kennzahl anlegen.</summary>
-    /// <remarks>
-    /// DB-04-Fix: RoleId/RollenDefinitionId sind beide nullable (Instanz- ODER
-    /// Definitions-Eigentümer). Ohne diese Prüfung liess der Endpunkt Zeilen
-    /// mit BEIDEN oder KEINEM Owner zu (der DB-CHECK-Constraint greift erst
-    /// beim SaveChanges und liefert dann nur eine rohe 500-Exception).
-    /// </remarks>
     [HttpPost]
     [Authorize(Policy = Permissions.RoleUpdate)]
     public async Task<IActionResult> Post([FromBody] S3RolleKennzahl eintrag)
@@ -49,9 +43,9 @@ public class S3RolleKennzahlenController : ODataController
         {
             return BadRequest(ModelState);
         }
-        if (!HatGenauEinenOwner(eintrag))
+        if (eintrag.RollenDefinitionId == Guid.Empty)
         {
-            return BadRequest(new { fehler = "Eine Kennzahl muss entweder einer Rolleninstanz (RoleId) oder einer Rollendefinition (RollenDefinitionId) zugeordnet sein - nicht beiden und nicht keiner." });
+            return BadRequest(new { fehler = "Eine Kennzahl muss einer Rollendefinition (RollenDefinitionId) zugeordnet sein." });
         }
         _db.S3RolleKennzahlen.Add(eintrag);
         await _db.SaveChangesAsync();
@@ -69,16 +63,13 @@ public class S3RolleKennzahlenController : ODataController
             return NotFound();
         }
         delta.Patch(eintrag);
-        if (!HatGenauEinenOwner(eintrag))
+        if (eintrag.RollenDefinitionId == Guid.Empty)
         {
-            return BadRequest(new { fehler = "Eine Kennzahl muss entweder einer Rolleninstanz (RoleId) oder einer Rollendefinition (RollenDefinitionId) zugeordnet sein - nicht beiden und nicht keiner." });
+            return BadRequest(new { fehler = "Eine Kennzahl muss einer Rollendefinition (RollenDefinitionId) zugeordnet sein." });
         }
         await _db.SaveChangesAsync();
         return Updated(eintrag);
     }
-
-    private static bool HatGenauEinenOwner(S3RolleKennzahl eintrag)
-        => eintrag.RoleId.HasValue != eintrag.RollenDefinitionId.HasValue;
 
     /// <summary>DELETE({id}) – Kennzahl löschen.</summary>
     [HttpDelete]
