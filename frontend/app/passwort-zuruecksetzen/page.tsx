@@ -57,7 +57,10 @@ function ResetForm() {
       const res = await fetch('/api/auth/reset-password', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ token, password }),
+        // UI-31-Fix: Backend erwartet "newPassword" (ResetPasswordRequest.cs),
+        // nicht "password" - der Reset schlug bislang immer mit einer generischen
+        // Fehlermeldung fehl (ModelState-Validierung: NewPassword blieb leer).
+        body: JSON.stringify({ token, newPassword: password }),
       });
 
       const data = await res.json();
