@@ -68,7 +68,11 @@ public class S3StorageService
     {
         await EnsureBucketAsync();
 
-        var key = $"{FolderPrefix}/{Guid.NewGuid():N}-{dateiname}";
+        // SEC-AUDIT-08: Ursprünglicher Dateiname wurde bisher ungeprüft Teil des
+        // S3-Objektschlüssels. Klassisches Path-Traversal greift bei S3s flachem
+        // Key-Namespace nicht, aber ohne Allowlist könnten beliebige Sonder-/
+        // Steuerzeichen im Schlüssel landen.
+        var key = $"{FolderPrefix}/{Guid.NewGuid():N}-{UploadValidierung.BereinigeDateiname(dateiname)}";
         var request = new PutObjectRequest
         {
             BucketName = BucketName,

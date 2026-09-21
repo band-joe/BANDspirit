@@ -43,6 +43,35 @@ try
     var odataModelBuilder = new ODataConventionModelBuilder();
     // SEC-M4: UserDto statt User exposieren (ohne Password-Hash)
     odataModelBuilder.EntitySet<UserDto>("Users");
+    // SEC-AUDIT-01: [JsonIgnore] auf User.Password/VerificationToken schützt nur die
+    // separate REST-JSON-Pipeline (AddJsonOptions), NICHT den OData-Formatter. Sobald
+    // eine andere Entität eine Navigation zu User besitzt (z. B.
+    // S3PersonRoleAssignment.User, benötigt fürs Anzeigen zugewiesener Mitglieder),
+    // wird die volle User-Entität inkl. BCrypt-Hash über $expand=...($expand=User)
+    // serialisiert - bestätigt für /odata/Roles?$expand=Assignments($expand=User),
+    // erreichbar mit der einfachen "User"-Rolle (RoleRead). Global auf dem EDM-Typ
+    // ignorieren wirkt unabhängig vom Navigationspfad, auch für künftige Relationen.
+    odataModelBuilder.EntityType<User>().Ignore(u => u.Password);
+    odataModelBuilder.EntityType<User>().Ignore(u => u.VerificationToken);
+    // SEC-AUDIT-03: Über denselben S3PersonRoleAssignment.User-Navigationspfad war
+    // bislang der komplette restliche User-Datensatz (u. a. AbacusPersonalnummer -
+    // Personaldaten-Charakter -, Role/RoleId, EmailCanonical, RowVersion) bereits mit
+    // der niedrigsten Berechtigungsstufe (RoleRead) einsehbar, obwohl der direkte
+    // Users-EntitySet (UserDto) bewusst auf UserRead beschränkt ist. Das Frontend
+    // nutzt aus diesem Pfad nachweislich nur Id/Name/Email/Telefon (Mitglieder-Badges) -
+    // alles andere wird daher ebenfalls ignoriert (Least Privilege). UserDto ist ein
+    // eigener Typ und bleibt davon unberührt.
+    odataModelBuilder.EntityType<User>().Ignore(u => u.AbacusPersonalnummer);
+    odataModelBuilder.EntityType<User>().Ignore(u => u.Role);
+    odataModelBuilder.EntityType<User>().Ignore(u => u.RoleId);
+    odataModelBuilder.EntityType<User>().Ignore(u => u.Aktiv);
+    odataModelBuilder.EntityType<User>().Ignore(u => u.EmailCanonical);
+    odataModelBuilder.EntityType<User>().Ignore(u => u.RowVersion);
+    odataModelBuilder.EntityType<User>().Ignore(u => u.EmailVerified);
+    odataModelBuilder.EntityType<User>().Ignore(u => u.VerificationTokenExpiry);
+    odataModelBuilder.EntityType<User>().Ignore(u => u.PortraetPfad);
+    odataModelBuilder.EntityType<User>().Ignore(u => u.CreatedById);
+    odataModelBuilder.EntityType<User>().Ignore(u => u.ChangedById);
     odataModelBuilder.EntitySet<BenutzerRolle>("BenutzerRollen");
     odataModelBuilder.EntitySet<S3Circle>("Circles");
     odataModelBuilder.EntitySet<S3Role>("Roles");
@@ -410,38 +439,49 @@ try
     // Echte Client-IP hinter dem nginx-Reverse-Proxy ermitteln (X-Forwarded-For /
     // X-Forwarded-Proto). MUSS früh in der Pipeline stehen, damit nachgelagerte
     // Middleware (Rate-Limiting, Logging) die korrekte Absender-IP sieht.
-    // KnownNetworks/KnownProxies werden geleert, da die Proxys im Docker-Netz mit
-    // dynamischen internen IPs laufen und ohnehin nicht öffentlich erreichbar sind.
+    // SEC-AUDIT-06: KnownNetworks wurde bisher komplett geleert (= X-Forwarded-For aus
+    // JEDER Quelle vertraut), weil einzelne Container-IPs im Docker-Netz dynamisch sind
+    // und ein Restart die nginx-IP ändern kann. Das feste Subnetz (siehe
+    // docker-compose.yml, bandspirit-net: 172.28.0.0/16) bleibt über Container-Restarts
+    // hinweg stabil, auch wenn sich die einzelne Container-IP innerhalb ändert - daher
+    // genügt jetzt eine Einschränkung auf das Subnetz statt auf gar keine Einschränkung.
+    // Würde die API je direkt (unter Umgehung von nginx) erreichbar, liesse sich das
+    // IP-partitionierte Rate-Limiting sonst durch Fälschen des Headers umgehen.
     var forwardedOptions = new ForwardedHeadersOptions
     {
         ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto
     };
     forwardedOptions.KnownNetworks.Clear();
     forwardedOptions.KnownProxies.Clear();
+    forwardedOptions.KnownNetworks.Add(new IPNetwork(System.Net.IPAddress.Parse("172.28.0.0"), 16));
     app.UseForwardedHeaders(forwardedOptions);
 
     app.UseSerilogRequestLogging();
 
-    // API-Dokumentation (Swagger / OpenAPI) ist in allen Environments verfügbar.
-    // Route-Präfix /api/swagger/ → nginx leitet /api/* an das Backend weiter,
-    // dadurch ist die Doku ohne separate nginx-Konfiguration erreichbar.
-    // Kein [Authorize] auf den Swagger-Endpunkten: die Doku ist als Deeplink
-    // ohne Berechtigungsprüfung zugänglich. Die Try-It-Out-Funktion erfordert
-    // ein gültiges JWT-Token (im Authorize-Dialog einzutragen).
-    app.UseSwagger(c =>
+    // SEC-AUDIT-04: API-Dokumentation (Swagger / OpenAPI) NUR in Development/Docker
+    // verfügbar (analog zur bestehenden Migrations-/Seeding-Beschränkung unten) - nicht
+    // mehr unbedingt in jeder Umgebung. Kein [Authorize] auf den Swagger-Endpunkten: die
+    // Doku ist innerhalb dieser Umgebungen weiterhin als Deeplink ohne
+    // Berechtigungsprüfung zugänglich (die Try-It-Out-Funktion erfordert ein gültiges
+    // JWT-Token im Authorize-Dialog) - das komplette API-Schema soll aber nicht mehr
+    // unauthentifiziert in einer künftigen, gehärteten Produktivumgebung einsehbar sein.
+    if (app.Environment.IsDevelopment() || app.Environment.EnvironmentName == "Docker")
     {
-        c.RouteTemplate = "api/swagger/{documentName}/swagger.json";
-    });
-    app.UseSwaggerUI(c =>
-    {
-        c.SwaggerEndpoint("/api/swagger/v1/swagger.json", "BANDspirit API v1");
-        c.RoutePrefix = "api/swagger";
-        c.DocumentTitle = "BANDspirit – API Dokumentation";
-        c.EnableTryItOutByDefault();
-        c.DisplayRequestDuration();
-        c.EnableFilter();
-        c.EnableDeepLinking();
-    });
+        app.UseSwagger(c =>
+        {
+            c.RouteTemplate = "api/swagger/{documentName}/swagger.json";
+        });
+        app.UseSwaggerUI(c =>
+        {
+            c.SwaggerEndpoint("/api/swagger/v1/swagger.json", "BANDspirit API v1");
+            c.RoutePrefix = "api/swagger";
+            c.DocumentTitle = "BANDspirit – API Dokumentation";
+            c.EnableTryItOutByDefault();
+            c.DisplayRequestDuration();
+            c.EnableFilter();
+            c.EnableDeepLinking();
+        });
+    }
 
     if (!app.Environment.IsDevelopment())
     {
