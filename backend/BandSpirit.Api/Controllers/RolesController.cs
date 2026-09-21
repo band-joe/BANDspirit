@@ -175,15 +175,17 @@ public class RolesController : ODataController
             return Ok(new { nachricht = "Benutzer wurde der Rolle zugewiesen." });
         }
 
-        // Nur der Rolle "Mitglied" duerfen mehrere Benutzer zugewiesen werden.
-        // Alle anderen Rollen duerfen genau einen Benutzer haben.
-        var istMitglied = string.Equals(rolle.RollenDefinition?.Name, "Mitglied", StringComparison.OrdinalIgnoreCase);
-        if (!istMitglied)
+        // APP-17-Fix: Kardinalität kommt jetzt aus dem expliziten Feld
+        // ErlaubtMehrfachbesetzung statt aus einem Namensvergleich auf
+        // "Mitglied" - eine Umbenennung der Rollendefinition ändert die Regel
+        // dadurch nicht mehr unbeabsichtigt.
+        var erlaubtMehrfachbesetzung = rolle.RollenDefinition?.ErlaubtMehrfachbesetzung ?? false;
+        if (!erlaubtMehrfachbesetzung)
         {
             var hatBereitsBenutzer = await _db.S3PersonRoleAssignments.AnyAsync(p => p.RoleId == key);
             if (hatBereitsBenutzer)
             {
-                return Conflict(new { fehler = "Dieser Rolle ist bereits ein Benutzer zugeordnet. Nur der Rolle \"Mitglied\" koennen mehrere Benutzer zugewiesen werden." });
+                return Conflict(new { fehler = "Dieser Rolle ist bereits ein Benutzer zugeordnet. Diese Rollendefinition erlaubt keine Mehrfachbesetzung." });
             }
         }
 

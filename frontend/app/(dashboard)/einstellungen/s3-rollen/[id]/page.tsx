@@ -157,7 +157,7 @@ function UeberblickTab({ rDef, definitionId, canUpdate, session, onSaved }: {
   /* ------------------- Grunddaten der Rolle (bearbeitbar) ------------------- */
   const [grundForm, setGrundForm] = useState({
     name: '', beschreibung: '', zweck: '', domaene: '', verantwortlichkeit: '',
-    isLeadLink: false, aktiv: true, sortOrder: 0, dateFrom: '', dateTo: '',
+    isLeadLink: false, erlaubtMehrfachbesetzung: false, aktiv: true, sortOrder: 0, dateFrom: '', dateTo: '',
   });
   const [grundSaving, setGrundSaving] = useState(false);
 
@@ -170,6 +170,7 @@ function UeberblickTab({ rDef, definitionId, canUpdate, session, onSaved }: {
       domaene: String(rDef.domaene ?? ''),
       verantwortlichkeit: String(rDef.verantwortlichkeit ?? ''),
       isLeadLink: !!rDef.isLeadLink,
+      erlaubtMehrfachbesetzung: !!rDef.erlaubtMehrfachbesetzung,
       aktiv: rDef.aktiv !== false,
       sortOrder: Number(rDef.sortOrder) || 0,
       dateFrom: toDateInput(rDef.dateFrom),
@@ -187,6 +188,7 @@ function UeberblickTab({ rDef, definitionId, canUpdate, session, onSaved }: {
       domaene: grundForm.domaene.trim() ? grundForm.domaene.trim() : null,
       verantwortlichkeit: grundForm.verantwortlichkeit.trim() ? grundForm.verantwortlichkeit.trim() : null,
       isLeadLink: grundForm.isLeadLink,
+      erlaubtMehrfachbesetzung: grundForm.erlaubtMehrfachbesetzung,
       aktiv: grundForm.aktiv,
       sortOrder: grundForm.sortOrder,
       dateFrom: fromDateInput(grundForm.dateFrom),
@@ -241,6 +243,15 @@ function UeberblickTab({ rDef, definitionId, canUpdate, session, onSaved }: {
                 disabled={!canUpdate}
               />
               <Label htmlFor="isLeadLink">Lead Link (max. 1 pro Kreis)</Label>
+            </div>
+            <div className="flex items-center gap-3">
+              <Switch
+                id="erlaubtMehrfachbesetzung"
+                checked={grundForm.erlaubtMehrfachbesetzung}
+                onCheckedChange={v => setGrundForm(f => ({ ...f, erlaubtMehrfachbesetzung: v }))}
+                disabled={!canUpdate}
+              />
+              <Label htmlFor="erlaubtMehrfachbesetzung">Mehrfachbesetzung erlaubt (mehrere Personen gleichzeitig)</Label>
             </div>
             <div className="flex items-center gap-3">
               <Switch

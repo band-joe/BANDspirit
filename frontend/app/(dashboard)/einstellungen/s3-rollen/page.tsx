@@ -33,6 +33,7 @@ interface RollenDefinition {
   domaene: string | null;
   verantwortlichkeit: string | null;
   isLeadLink: boolean;
+  erlaubtMehrfachbesetzung: boolean;
   aktiv: boolean;
   sortOrder: number;
   dateFrom: string | null;
@@ -72,6 +73,7 @@ export default function S3RollenPage() {
     domaene: '',
     verantwortlichkeit: '',
     isLeadLink: false,
+    erlaubtMehrfachbesetzung: false,
     aktiv: true,
     sortOrder: 0,
     dateFrom: '',
@@ -96,7 +98,7 @@ export default function S3RollenPage() {
 
   const openCreate = () => {
     setEditingItem(null);
-    setForm({ name: '', beschreibung: '', zweck: '', domaene: '', verantwortlichkeit: '', isLeadLink: false, aktiv: true, sortOrder: 0, dateFrom: '', dateTo: '' });
+    setForm({ name: '', beschreibung: '', zweck: '', domaene: '', verantwortlichkeit: '', isLeadLink: false, erlaubtMehrfachbesetzung: false, aktiv: true, sortOrder: 0, dateFrom: '', dateTo: '' });
     setDialogOpen(true);
   };
 
@@ -290,6 +292,14 @@ export default function S3RollenPage() {
                 onCheckedChange={v => setForm(f => ({ ...f, isLeadLink: v }))}
               />
               <Label htmlFor="isLeadLink">Lead Link (max. 1 pro Kreis)</Label>
+            </div>
+            <div className="flex items-center gap-3">
+              <Switch
+                id="erlaubtMehrfachbesetzung"
+                checked={form.erlaubtMehrfachbesetzung}
+                onCheckedChange={v => setForm(f => ({ ...f, erlaubtMehrfachbesetzung: v }))}
+              />
+              <Label htmlFor="erlaubtMehrfachbesetzung">Mehrfachbesetzung erlaubt (mehrere Personen gleichzeitig)</Label>
             </div>
             <div>
               <Label>Sortierreihenfolge</Label>
