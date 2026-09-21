@@ -116,7 +116,7 @@ const navItems: NavItem[] = [
       { label: 'Key Results', href: '/einstellungen/key-results', icon: <ListChecks className="h-4 w-4" />, permission: 'stammdaten:manage' },
       { label: 'KPIs', href: '/einstellungen/kpi', icon: <Gauge className="h-4 w-4" />, permission: 'stammdaten:manage' },
       { label: 'BI-Guide Kategorien', href: '/einstellungen/bi-guide-kategorien', icon: <Tag className="h-4 w-4" />, permission: 'stammdaten:manage' },
-      { label: 'Application-Log', href: '/application-log', icon: <ScrollText className="h-4 w-4" />, permission: 'applog:read', accessKey: 'einstellungen' },
+      { label: 'Application-Log', href: '/application-log', icon: <ScrollText className="h-4 w-4" />, permission: 'applog:read', accessKey: 'application-log' },
     ],
   },
 ];
@@ -233,11 +233,18 @@ export function DashboardShell({ children, user }: { children: React.ReactNode; 
         {filteredNavItems.map((item) => {
           if (item.children) {
             const isOpen = expandedGroups[item.label] ?? isChildActive(item);
-            // Bei verwalteten Rollen ist der Eltern-Eintrag bereits über den
-            // accessKey freigegeben -> alle Unterpunkte anzeigen. Sonst greift
-            // die bestehende Berechtigungsprüfung je Unterpunkt.
+            // UI-18-Fix: Bei verwalteten Rollen war der eigene accessKey eines
+            // Kind-Eintrags bislang vollständig wirkungslos - sobald der
+            // Eltern-Eintrag sichtbar war, wurden ausnahmslos ALLE Unterpunkte
+            // angezeigt. Ein Kind ohne eigenen accessKey verhält sich weiterhin
+            // wie zuvor (an den Eltern-Eintrag gekoppelt); ein Kind MIT eigenem
+            // accessKey (z. B. Application-Log) wird jetzt zusätzlich gegen die
+            // Rollen-Whitelist geprüft, statt den Schlüssel stillschweigend zu
+            // ignorieren. Für die aktuell definierten Rollen ändert sich dadurch
+            // nichts (nur Admin erreicht "Einstellungen" überhaupt), macht den
+            // Schlüssel aber für künftige, feiner abgestufte Freigaben wirksam.
             const visibleChildren = managedRole
-              ? item.children
+              ? item.children.filter(c => !c.accessKey || roleCanAccessKey(managedRole, c.accessKey))
               : item.children.filter(c => can(c.permission));
             return (
               <div key={item.label} className="mb-1">
