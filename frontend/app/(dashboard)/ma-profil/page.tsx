@@ -5,7 +5,7 @@ import { useSession } from 'next-auth/react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
-import { useToast } from '@/hooks/use-toast';
+import { toast } from 'sonner';
 import { apiClient, getToken } from '@/lib/api-client';
 import { UserCircle, Upload, Trash2, Mail, Users, Loader2, Network, CornerDownRight } from 'lucide-react';
 
@@ -36,7 +36,6 @@ const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? '';
 
 export default function MaProfilPage() {
   const { data: session } = useSession() || {};
-  const { toast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [profil, setProfil] = useState<ProfilData | null>(null);
@@ -52,11 +51,7 @@ export default function MaProfilPage() {
       const daten = await apiClient.get<ProfilData>('/api/profil/meins', session);
       setProfil(daten);
     } catch (e) {
-      toast({
-        title: 'Fehler',
-        description: 'Das Profil konnte nicht geladen werden.',
-        variant: 'destructive',
-      });
+      toast.error('Das Profil konnte nicht geladen werden.');
     } finally {
       setLaedt(false);
     }
@@ -127,11 +122,7 @@ export default function MaProfilPage() {
     if (!datei) return;
 
     if (!datei.type.startsWith('image/')) {
-      toast({
-        title: 'Ungültige Datei',
-        description: 'Bitte wählen Sie eine Bilddatei (z. B. JPG oder PNG).',
-        variant: 'destructive',
-      });
+      toast.error('Bitte wählen Sie eine Bilddatei (z. B. JPG oder PNG).');
       return;
     }
 
@@ -149,14 +140,10 @@ export default function MaProfilPage() {
       if (!res.ok) {
         throw new Error('Upload fehlgeschlagen');
       }
-      toast({ title: 'Erfolg', description: 'Porträtfoto wurde hochgeladen.' });
+      toast.success('Porträtfoto wurde hochgeladen.');
       await ladeProfil();
     } catch (err) {
-      toast({
-        title: 'Fehler',
-        description: 'Das Foto konnte nicht hochgeladen werden.',
-        variant: 'destructive',
-      });
+      toast.error('Das Foto konnte nicht hochgeladen werden.');
     } finally {
       setLaedtHoch(false);
       if (fileInputRef.current) fileInputRef.current.value = '';
@@ -167,14 +154,10 @@ export default function MaProfilPage() {
     try {
       setLaedtHoch(true);
       await apiClient.delete('/api/profil/foto', session);
-      toast({ title: 'Erfolg', description: 'Porträtfoto wurde entfernt.' });
+      toast.success('Porträtfoto wurde entfernt.');
       await ladeProfil();
     } catch (err) {
-      toast({
-        title: 'Fehler',
-        description: 'Das Foto konnte nicht entfernt werden.',
-        variant: 'destructive',
-      });
+      toast.error('Das Foto konnte nicht entfernt werden.');
     } finally {
       setLaedtHoch(false);
     }

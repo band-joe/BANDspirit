@@ -12,7 +12,7 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { useToast } from '@/hooks/use-toast';
+import { toast } from 'sonner';
 import { UserCog, Plus, Search, Shield, Mail, UserCheck, UserX, Link2, Pencil } from 'lucide-react';
 import { hasPermission, getRoleLabel } from '@/lib/rbac';
 import { apiClient } from '@/lib/api-client';
@@ -46,7 +46,6 @@ export default function BenutzerPage() {
   const { data: session } = useSession() || {};
   const role = (session?.user as any)?.role;
   const currentUserId = (session?.user as any)?.id;
-  const { toast } = useToast();
   const [users, setUsers] = useState<UserEntry[]>([]);
   const [rollen, setRollen] = useState<BenutzerRolleOption[]>([]);
   const [loading, setLoading] = useState(true);
@@ -84,9 +83,9 @@ export default function BenutzerPage() {
       await apiClient.patch(`/odata/Users(${deleteTarget.id})`, { aktiv: false }, session);
       // Liste aktualisieren: Benutzer als inaktiv markieren.
       setUsers(prev => prev.map(u => u.id === deleteTarget.id ? { ...u, aktiv: false } : u));
-      toast({ title: 'Deaktiviert', description: 'Benutzer wurde deaktiviert und kann sich nicht mehr anmelden.' });
+      toast.success('Benutzer wurde deaktiviert und kann sich nicht mehr anmelden.');
     } catch {
-      toast({ title: 'Fehler', description: 'Benutzer konnte nicht deaktiviert werden.', variant: 'destructive' });
+      toast.error('Benutzer konnte nicht deaktiviert werden.');
     } finally {
       setDeleting(false);
       setDeleteTarget(null);

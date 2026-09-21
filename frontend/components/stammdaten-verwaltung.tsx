@@ -9,7 +9,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
-import { useToast } from '@/hooks/use-toast';
+import { toast } from 'sonner';
 import { Plus, Pencil, Save, X, GripVertical, ChevronUp, ChevronDown } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -42,7 +42,6 @@ export function StammdatenVerwaltung({
   codeBearbeitbar = false,
 }: StammdatenVerwaltungProps) {
   const { data: session } = useSession() || {};
-  const { toast } = useToast();
   const [items, setItems] = useState<StammdatenItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [editId, setEditId] = useState<string | null>(null);
@@ -165,11 +164,11 @@ export function StammdatenVerwaltung({
         body: JSON.stringify({ aktiv: !item.aktiv }),
       });
       if (res.ok) {
-        toast({ title: item.aktiv ? 'Deaktiviert' : 'Aktiviert' });
+        toast.success(item.aktiv ? 'Deaktiviert' : 'Aktiviert');
         load();
       }
     } catch (e) {
-      toast({ title: 'Fehler', variant: 'destructive' });
+      toast.error('Fehler');
     }
   };
 

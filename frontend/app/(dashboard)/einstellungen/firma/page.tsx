@@ -7,7 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { useToast } from '@/hooks/use-toast';
+import { toast } from 'sonner';
 import { apiClient, getToken } from '@/lib/api-client';
 import { Building2, Save, Upload, Trash2, Globe, Mail, Phone, MapPin, ImageIcon } from 'lucide-react';
 import Image from 'next/image';
@@ -34,7 +34,6 @@ interface FirmaData {
 
 export default function FirmaPage() {
   const { data: session } = useSession() || {};
-  const { toast } = useToast();
   const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -91,10 +90,10 @@ export default function FirmaPage() {
       // OData-Singleton-PATCH (ohne Key)
       const data = await apiClient.patch<FirmaData>('/odata/Firma', form, session);
       if (data) setFirma(data);
-      toast({ title: 'Gespeichert', description: 'Firmendaten wurden aktualisiert.' });
+      toast.success('Firmendaten wurden aktualisiert.');
       router.push('/dashboard');
     } catch {
-      toast({ title: 'Fehler', description: 'Firmendaten konnten nicht gespeichert werden.', variant: 'destructive' });
+      toast.error('Firmendaten konnten nicht gespeichert werden.');
     } finally {
       setSaving(false);
     }
@@ -107,12 +106,12 @@ export default function FirmaPage() {
     // Validate type
     const allowed = ['image/png', 'image/jpeg', 'image/gif', 'image/webp', 'image/svg+xml'];
     if (!allowed.includes(file.type)) {
-      toast({ title: 'Fehler', description: 'Nur Bilddateien (PNG, JPEG, GIF, WebP, SVG) sind erlaubt.', variant: 'destructive' });
+      toast.error('Nur Bilddateien (PNG, JPEG, GIF, WebP, SVG) sind erlaubt.');
       return;
     }
     // Max 5MB
     if (file.size > 5 * 1024 * 1024) {
-      toast({ title: 'Fehler', description: 'Maximale Dateigrösse: 5 MB', variant: 'destructive' });
+      toast.error('Maximale Dateigrösse: 5 MB');
       return;
     }
 
@@ -135,9 +134,9 @@ export default function FirmaPage() {
 
       // Anzeige über den API-Endpunkt aktualisieren (Cache-Buster erzwingt Neuladen).
       setLogoUrl(`${LOGO_ENDPOINT}?t=${Date.now()}`);
-      toast({ title: 'Logo hochgeladen', description: 'Das Firmenlogo wurde aktualisiert.' });
+      toast.success('Das Firmenlogo wurde aktualisiert.');
     } catch {
-      toast({ title: 'Fehler', description: 'Logo konnte nicht hochgeladen werden.', variant: 'destructive' });
+      toast.error('Logo konnte nicht hochgeladen werden.');
     } finally {
       setUploading(false);
       if (fileInputRef.current) fileInputRef.current.value = '';
@@ -153,9 +152,9 @@ export default function FirmaPage() {
       });
       if (!res.ok) throw new Error('Löschen fehlgeschlagen');
       setLogoUrl(null);
-      toast({ title: 'Logo entfernt', description: 'Das Firmenlogo wurde entfernt.' });
+      toast.success('Das Firmenlogo wurde entfernt.');
     } catch {
-      toast({ title: 'Fehler', description: 'Logo konnte nicht entfernt werden.', variant: 'destructive' });
+      toast.error('Logo konnte nicht entfernt werden.');
     }
   };
 
