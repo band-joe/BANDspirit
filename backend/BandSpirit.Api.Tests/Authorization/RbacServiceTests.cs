@@ -38,6 +38,13 @@ public class RbacServiceTests : IDisposable
     public async Task HasPermissionAsync_UserWithPermission_ReturnsTrue()
     {
         // Arrange
+        // APP-05-Fix (P005): GetPermissionsForRoleAsync liest DB-Berechtigungen nur
+        // für eine bekannte, aktive BenutzerRolle - sonst greift der Fallback (fail-
+        // closed für unbekannte Rollen). Ohne diesen Eintrag würde "Editor" als
+        // unbekannt gelten und der schreibgeschützte Fallback (ohne "user:read")
+        // zurückgegeben, wodurch der Test unabhängig vom geseedeten RolePermission
+        // fehlschlägt.
+        _db.BenutzerRollen.Add(new BenutzerRolle { Name = "Editor" });
         _db.RolePermissions.Add(new RolePermission
         {
             Role = "Editor",
@@ -56,6 +63,11 @@ public class RbacServiceTests : IDisposable
     public async Task HasPermissionAsync_UserWithoutPermission_ReturnsFalse()
     {
         // Arrange
+        // Bekannte, aktive Rolle (siehe Kommentar im Test oben) - ohne diesen
+        // Eintrag würde der Test zufällig über den Fallback-Pfad statt über die
+        // eigentlich zu prüfende "bekannte Rolle ohne diese Berechtigung"-Logik
+        // bestehen.
+        _db.BenutzerRollen.Add(new BenutzerRolle { Name = "Viewer" });
         _db.RolePermissions.Add(new RolePermission
         {
             Role = "Viewer",
