@@ -34,21 +34,25 @@ interface WorkItem {
   titel: string;
   beschreibung: string | null;
   status: string;
-  zugewiesenAnId: string;
-  zugewiesenAn: { id: string; name: string };
+  // UI-12-Fix: kein "zugewiesenAn"-Navigationsobjekt vom Backend - Name wird
+  // clientseitig aus der bereits geladenen users-Liste aufgelöst.
+  zugewiesenAnId: string | null;
   createdAt: string;
 }
 
 interface DriverDetail {
   id: string;
-  title: string;
-  description: string | null;
+  // UI-12-Fix: echte Backend-Feldnamen (Titel/Beschreibung/Prioritaet) statt
+  // erfundener englischer Namen; kein "creator"-Navigationsobjekt - Name wird
+  // clientseitig über createdById aus der users-Liste aufgelöst.
+  titel: string;
+  beschreibung: string | null;
   status: string;
-  priority: string;
+  prioritaet: string;
   entscheid: string | null;
   entscheidDatum: string | null;
   circle: { id: string; name: string };
-  creator: { id: string; name: string };
+  createdById: string | null;
   workItems: WorkItem[];
   createdAt: string;
   updatedAt: string;
@@ -94,9 +98,9 @@ export default function SpannungDetailPage() {
 
   // Edit form
   const [editForm, setEditForm] = useState({
-    title: '',
-    description: '',
-    priority: 'MITTEL',
+    titel: '',
+    beschreibung: '',
+    prioritaet: 'MITTEL',
     entscheid: '',
     entscheidDatum: '',
   });
@@ -113,15 +117,18 @@ export default function SpannungDetailPage() {
     if (!session) return;
     try {
       // Spannung inkl. Arbeitspaketen und Kreis über OData laden
+      // UI-12-Fix: kein "Creator"-Navigationsfeld auf S3Driver - $expand=Creator
+      // liess die gesamte Abfrage zuvor mit einem OData-400-Fehler scheitern,
+      // wodurch diese Seite nie eine Spannung laden konnte.
       const data = await apiClient.get<DriverDetail>(
-        `/odata/Drivers(${params.id})?$expand=WorkItems,Circle,Creator`,
+        `/odata/Drivers(${params.id})?$expand=WorkItems,Circle`,
         session
       );
       setDriver(data);
       setEditForm({
-        title: data.title,
-        description: data.description || '',
-        priority: data.priority,
+        titel: data.titel,
+        beschreibung: data.beschreibung || '',
+        prioritaet: data.prioritaet,
         entscheid: data.entscheid || '',
         entscheidDatum: data.entscheidDatum ? data.entscheidDatum.split('T')[0] : '',
       });
@@ -155,9 +162,9 @@ export default function SpannungDetailPage() {
     try {
       // Spannung über OData aktualisieren
       await apiClient.patch(`/odata/Drivers(${driver.id})`, {
-        title: editForm.title,
-        description: editForm.description || null,
-        priority: editForm.priority,
+        titel: editForm.titel,
+        beschreibung: editForm.beschreibung || null,
+        prioritaet: editForm.prioritaet,
         entscheid: editForm.entscheid || null,
         entscheidDatum: editForm.entscheidDatum || null,
       }, session);
@@ -257,7 +264,8 @@ export default function SpannungDetailPage() {
     );
   }
 
-  const prio = PRIORITY_CONFIG[driver.priority] || PRIORITY_CONFIG.MITTEL;
+  const prio = PRIORITY_CONFIG[driver.prioritaet] || PRIORITY_CONFIG.MITTEL;
+  const erstellerName = users.find(u => u.id === driver.createdById)?.name ?? 'Unbekannt';
   const stat = STATUS_CONFIG[driver.status] || STATUS_CONFIG.OFFEN;
   const openWI = driver.workItems.filter(wi => wi.status !== 'ERLEDIGT').length;
   const totalWI = driver.workItems.length;
@@ -277,7 +285,7 @@ export default function SpannungDetailPage() {
             <Zap className="h-6 w-6 text-orange-500" />
           </div>
           <div>
-            <h1 className="text-2xl font-bold">{driver.title}</h1>
+            <h1 className="text-2xl font-bold">{driver.titel}</h1>
             <div className="flex items-center gap-2 mt-1">
               <Badge className={stat.color}>{stat.label}</Badge>
               <Badge className={prio.color}>{prio.label}</Badge>
@@ -344,21 +352,21 @@ export default function SpannungDetailPage() {
                   <div className="space-y-2">
                     <Label>Titel</Label>
                     <Input
-                      value={editForm.title}
-                      onChange={e => setEditForm(f => ({ ...f, title: e.target.value }))}
+                      value={editForm.titel}
+                      onChange={e => setEditForm(f => ({ ...f, titel: e.target.value }))}
                     />
                   </div>
                   <div className="space-y-2">
                     <Label>Beschreibung</Label>
                     <Textarea
-                      value={editForm.description}
-                      onChange={e => setEditForm(f => ({ ...f, description: e.target.value }))}
+                      value={editForm.beschreibung}
+                      onChange={e => setEditForm(f => ({ ...f, beschreibung: e.target.value }))}
                       rows={4}
                     />
                   </div>
                   <div className="space-y-2">
                     <Label>Priorität</Label>
-                    <Select value={editForm.priority} onValueChange={v => setEditForm(f => ({ ...f, priority: v }))}>
+                    <Select value={editForm.prioritaet} onValueChange={v => setEditForm(f => ({ ...f, prioritaet: v }))}>
                       <SelectTrigger><SelectValue /></SelectTrigger>
                       <SelectContent>
                         <SelectItem value="NIEDRIG">Niedrig</SelectItem>
@@ -369,16 +377,16 @@ export default function SpannungDetailPage() {
                     </Select>
                   </div>
                   <div className="flex gap-2 pt-2">
-                    <Button onClick={handleSave} disabled={saving || !editForm.title.trim()}>
+                    <Button onClick={handleSave} disabled={saving || !editForm.titel.trim()}>
                       <Save className="h-4 w-4 mr-2" />
                       {saving ? 'Speichern…' : 'Speichern'}
                     </Button>
                     <Button variant="outline" onClick={() => {
                       setEditing(false);
                       setEditForm({
-                        title: driver.title,
-                        description: driver.description || '',
-                        priority: driver.priority,
+                        titel: driver.titel,
+                        beschreibung: driver.beschreibung || '',
+                        prioritaet: driver.prioritaet,
                         entscheid: driver.entscheid || '',
                         entscheidDatum: driver.entscheidDatum ? driver.entscheidDatum.split('T')[0] : '',
                       });
@@ -389,8 +397,8 @@ export default function SpannungDetailPage() {
                 </>
               ) : (
                 <>
-                  {driver.description ? (
-                    <p className="text-sm text-muted-foreground whitespace-pre-line">{driver.description}</p>
+                  {driver.beschreibung ? (
+                    <p className="text-sm text-muted-foreground whitespace-pre-line">{driver.beschreibung}</p>
                   ) : (
                     <p className="text-sm text-muted-foreground italic">Keine Beschreibung</p>
                   )}
@@ -549,7 +557,7 @@ export default function SpannungDetailPage() {
                           <div className="flex items-center gap-3 mt-1.5 text-xs text-muted-foreground">
                             <span className="flex items-center gap-1">
                               <User className="h-3 w-3" />
-                              {wi.zugewiesenAn.name}
+                              {users.find(u => u.id === wi.zugewiesenAnId)?.name ?? 'Nicht zugewiesen'}
                             </span>
                             <span className="flex items-center gap-1">
                               <Calendar className="h-3 w-3" />
@@ -624,7 +632,7 @@ export default function SpannungDetailPage() {
                 <p className="text-muted-foreground">Erstellt von</p>
                 <p className="font-medium flex items-center gap-1">
                   <User className="h-3.5 w-3.5" />
-                  {driver.creator.name}
+                  {erstellerName}
                 </p>
               </div>
               <div>

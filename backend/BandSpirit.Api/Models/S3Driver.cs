@@ -17,6 +17,20 @@ public class S3Driver : AuditableEntity
     /// <summary>Beschreibung.</summary>
     public string? Beschreibung { get; set; }
 
+    /// <summary>
+    /// UI-12-Fix: Priorität (NIEDRIG/MITTEL/HOCH/DRINGEND). Das Frontend-Formular
+    /// hatte dafür immer schon ein Select-Feld, das Modell kannte es nicht -
+    /// der Wert ging beim Anlegen stillschweigend verloren.
+    /// </summary>
+    public string Prioritaet { get; set; } = "MITTEL";
+
+    /// <summary>
+    /// UI-12-Fix: Status (OFFEN/ERLEDIGT). Die Spannungs-Detailseite hat einen
+    /// vollständigen Öffnen/Schliessen-Workflow (PATCH status=...), der ohne
+    /// dieses Feld ins Leere lief - analog zu SpannungWorkItem.Status.
+    /// </summary>
+    public string Status { get; set; } = "OFFEN";
+
     /// <summary>Getroffener Entscheid.</summary>
     public string? Entscheid { get; set; }
 

@@ -284,7 +284,17 @@ public class BandSpiritDbContext : DbContext
         modelBuilder.Entity<S3Driver>(e =>
         {
             e.HasIndex(d => d.CircleId);
+            // UI-12-Fix: Fehlte bisher explizit - $expand=Circle lieferte deshalb
+            // immer null statt des tatsächlichen Kreises (Frontend griff ohne
+            // Optional-Chaining auf driver.circle.name/.id zu -> Absturz).
+            e.HasOne(d => d.Circle).WithMany().HasForeignKey(d => d.CircleId).OnDelete(DeleteBehavior.Cascade);
             e.HasMany(d => d.WorkItems).WithOne(w => w.Driver!).HasForeignKey(w => w.DriverId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<SpannungWorkItem>(e =>
+        {
+            e.HasIndex(w => w.ZugewiesenAnId);
+            e.HasOne(w => w.ZugewiesenAn).WithMany().HasForeignKey(w => w.ZugewiesenAnId).OnDelete(DeleteBehavior.SetNull);
         });
 
         // ── OKR / KeyResult ────────────────────────────────────────────────

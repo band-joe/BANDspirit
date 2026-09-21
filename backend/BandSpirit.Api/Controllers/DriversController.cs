@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.OData.Deltas;
 using Microsoft.AspNetCore.OData.Query;
+using Microsoft.AspNetCore.OData.Results;
 using Microsoft.AspNetCore.OData.Routing.Controllers;
 using Microsoft.EntityFrameworkCore;
 
@@ -23,13 +24,22 @@ public class DriversController : ODataController
     [Authorize(Policy = Permissions.DriverRead)]
     public IQueryable<S3Driver> Get() => _db.S3Drivers.AsQueryable();
 
+    /// <summary>
+    /// GET /odata/Drivers({id}) – Einzelnen Treiber abrufen.
+    /// </summary>
+    /// <remarks>
+    /// UI-12/APP-21-Fix: SingleResult-Antwort statt FirstOrDefaultAsync(), damit
+    /// $expand=WorkItems,Circle vor der Materialisierung angewendet wird -
+    /// FirstOrDefaultAsync() ignoriert $expand, wodurch Circle/WorkItems zuvor
+    /// immer null/leer zurückkamen (Frontend griff ohne Optional-Chaining auf
+    /// driver.circle.name zu -> Absturz).
+    /// </remarks>
     [HttpGet]
     [EnableQuery]
     [Authorize(Policy = Permissions.DriverRead)]
-    public async Task<IActionResult> Get([FromRoute] Guid key)
+    public SingleResult<S3Driver> Get([FromRoute] Guid key)
     {
-        var eintrag = await _db.S3Drivers.FirstOrDefaultAsync(d => d.Id == key);
-        return eintrag is null ? NotFound() : Ok(eintrag);
+        return SingleResult.Create(_db.S3Drivers.Where(d => d.Id == key));
     }
 
     [HttpPost]
