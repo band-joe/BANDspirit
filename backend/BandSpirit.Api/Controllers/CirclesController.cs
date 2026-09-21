@@ -61,18 +61,33 @@ public class CirclesController : ODataController
     }
 
     /// <summary>PATCH /odata/Circles({id}) – Kreis teilweise aktualisieren.</summary>
+    /// <remarks>
+    /// APP-09-Fix: ParentId-Änderungen sind über dieses generische PATCH NICHT
+    /// erlaubt. Der Zyklus-Check und die rekursive RootId-Aktualisierung aller
+    /// Nachfahren leben ausschliesslich in <see cref="CircleHierarchyController"/>
+    /// (Anhaengen/Loesen). Dieses PATCH aktualisierte zuvor nur die RootId des
+    /// bearbeiteten Kreises selbst, liess Zyklen zu und liess Nachfahren mit
+    /// einer veralteten RootId zurück.
+    /// </remarks>
     [HttpPatch]
     [Authorize(Policy = Permissions.CircleUpdate)]
     public async Task<IActionResult> Patch([FromRoute] Guid key, [FromBody] Delta<S3Circle> delta)
     {
+        if (delta.GetChangedPropertyNames().Contains(nameof(S3Circle.ParentId)))
+        {
+            return BadRequest(new
+            {
+                fehler = "Die übergeordnete Zuordnung (ParentId) kann über dieses PATCH nicht geändert werden. " +
+                         "Bitte POST /api/circles/{id}/anhaengen bzw. /api/circles/{id}/loesen verwenden."
+            });
+        }
+
         var eintrag = await _db.S3Circles.FirstOrDefaultAsync(c => c.Id == key);
         if (eintrag is null)
         {
             return NotFound();
         }
         delta.Patch(eintrag);
-        // Bei Änderung der Hierarchie (ParentId) die RootId neu berechnen.
-        eintrag.RootId = await ResolveRootIdAsync(eintrag.ParentId, eintrag.Id);
         await _db.SaveChangesAsync();
         return Updated(eintrag);
     }
