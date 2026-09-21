@@ -8,6 +8,7 @@ using Microsoft.AspNetCore.OData.Query;
 using Microsoft.AspNetCore.OData.Results;
 using Microsoft.AspNetCore.OData.Routing.Controllers;
 using Microsoft.EntityFrameworkCore;
+using Npgsql;
 
 using BandSpirit.Api.Infrastructure.Auth;
 namespace BandSpirit.Api.Controllers;
@@ -56,6 +57,10 @@ public class RolesController : ODataController
         }
 
         // Eine Rolle (Vorlage) darf pro Kreis nur EINMAL zugeordnet werden.
+        // DB-03: Dieser Check allein schützt nicht vor zwei gleichzeitigen
+        // Requests (TOCTOU) - der Composite-Unique-Index (BandSpiritDbContext)
+        // ist die tatsächliche Absicherung, dieser Check liefert nur die
+        // freundliche Fehlermeldung im Normalfall.
         var bereitsVorhanden = await _db.S3Roles.AnyAsync(
             r => r.CircleId == eintrag.CircleId && r.RollenDefinitionId == eintrag.RollenDefinitionId);
         if (bereitsVorhanden)
@@ -64,11 +69,24 @@ public class RolesController : ODataController
         }
 
         _db.S3Roles.Add(eintrag);
-        await _db.SaveChangesAsync();
+        try
+        {
+            await _db.SaveChangesAsync();
+        }
+        catch (DbUpdateException ex) when (IstEindeutigkeitsverletzung(ex))
+        {
+            return Conflict(new { fehler = "Diese Rolle ist in diesem Kreis bereits vorhanden. Eine Rollen-Vorlage kann pro Kreis nur einmal zugeordnet werden." });
+        }
         return Created(eintrag);
     }
 
     /// <summary>PATCH /odata/Roles({id}) – Rolle aktualisieren.</summary>
+    /// <remarks>
+    /// DB-03-Fix: Prüft jetzt VOR dem Speichern, ob die (ggf. neue) Kombination
+    /// aus CircleId/RollenDefinitionId bereits bei einer anderen Rolle existiert
+    /// - zuvor liess PATCH beliebige Duplikate zu, da nur der Create-Pfad
+    /// geprüft wurde.
+    /// </remarks>
     [HttpPatch]
     [Authorize(Policy = Permissions.RoleUpdate)]
     public async Task<IActionResult> Patch([FromRoute] Guid key, [FromBody] Delta<S3Role> delta)
@@ -79,9 +97,28 @@ public class RolesController : ODataController
             return NotFound();
         }
         delta.Patch(eintrag);
-        await _db.SaveChangesAsync();
+
+        var kollidiertMitAnderer = await _db.S3Roles.AnyAsync(
+            r => r.Id != key && r.CircleId == eintrag.CircleId && r.RollenDefinitionId == eintrag.RollenDefinitionId);
+        if (kollidiertMitAnderer)
+        {
+            return Conflict(new { fehler = "Diese Rolle ist in diesem Kreis bereits vorhanden. Eine Rollen-Vorlage kann pro Kreis nur einmal zugeordnet werden." });
+        }
+
+        try
+        {
+            await _db.SaveChangesAsync();
+        }
+        catch (DbUpdateException ex) when (IstEindeutigkeitsverletzung(ex))
+        {
+            return Conflict(new { fehler = "Diese Rolle ist in diesem Kreis bereits vorhanden. Eine Rollen-Vorlage kann pro Kreis nur einmal zugeordnet werden." });
+        }
         return Updated(eintrag);
     }
+
+    /// <summary>Erkennt eine PostgreSQL-Unique-Constraint-Verletzung (SQLSTATE 23505).</summary>
+    private static bool IstEindeutigkeitsverletzung(DbUpdateException ex)
+        => ex.InnerException is PostgresException { SqlState: "23505" };
 
     /// <summary>
     /// DELETE /odata/Roles({id}) – Rolle aus dem Kreis löschen.

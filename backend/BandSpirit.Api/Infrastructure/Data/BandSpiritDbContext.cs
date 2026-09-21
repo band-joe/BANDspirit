@@ -208,17 +208,33 @@ public class BandSpiritDbContext : DbContext
         modelBuilder.Entity<S3Role>(e =>
         {
             e.HasIndex(r => r.CircleId);
+            // DB-03-Fix: RolesController.Post prüfte Eindeutigkeit von
+            // (CircleId, RollenDefinitionId) nur per Anwendungscode (Race
+            // Condition bei gleichzeitigen Requests möglich) und ohne
+            // DB-Backstop; PATCH prüfte gar nicht. Ein Composite-Unique-Index
+            // ist jetzt die tatsächliche Quelle der Wahrheit; die Controller
+            // fangen die resultierende Unique-Violation ab und melden sie als
+            // freundlichen 409 statt eines rohen 500ers.
+            e.HasIndex(r => new { r.CircleId, r.RollenDefinitionId }).IsUnique();
             e.HasOne(r => r.Circle).WithMany().HasForeignKey(r => r.CircleId).OnDelete(DeleteBehavior.Cascade);
             e.HasOne(r => r.RollenDefinition).WithMany().HasForeignKey(r => r.RollenDefinitionId).OnDelete(DeleteBehavior.Restrict);
         });
 
         // ── S3Rolle Detail-Tabs (Kennzahlen, Dokumente) ──────────────────
+        // DB-04-Fix: RoleId/RollenDefinitionId sind beide nullable (Instanz-
+        // ODER Definitions-Eigentümer). Ohne Constraint konnten Zeilen mit
+        // BEIDEN oder KEINEM Owner entstehen (z. B. via generischem OData-PATCH
+        // auf S3RolleKennzahlen, das beide Felder clientseitig überschreiben
+        // liess). CHECK erzwingt jetzt "genau einer von beiden".
         modelBuilder.Entity<S3RolleKennzahl>(e =>
         {
             e.HasIndex(k => k.RoleId);
             e.HasIndex(k => k.RollenDefinitionId);
             e.HasOne(k => k.Role).WithMany(r => r.Kennzahlen).HasForeignKey(k => k.RoleId).OnDelete(DeleteBehavior.Cascade);
             e.HasOne(k => k.RollenDefinition).WithMany().HasForeignKey(k => k.RollenDefinitionId).OnDelete(DeleteBehavior.Cascade);
+            e.ToTable(t => t.HasCheckConstraint(
+                "CK_S3RolleKennzahlen_GenauEinOwner",
+                "(\"RoleId\" IS NOT NULL) <> (\"RollenDefinitionId\" IS NOT NULL)"));
         });
 
         modelBuilder.Entity<S3RolleDokument>(e =>
@@ -227,6 +243,9 @@ public class BandSpiritDbContext : DbContext
             e.HasIndex(d => d.RollenDefinitionId);
             e.HasOne(d => d.Role).WithMany(r => r.Dokumente).HasForeignKey(d => d.RoleId).OnDelete(DeleteBehavior.Cascade);
             e.HasOne(d => d.RollenDefinition).WithMany().HasForeignKey(d => d.RollenDefinitionId).OnDelete(DeleteBehavior.Cascade);
+            e.ToTable(t => t.HasCheckConstraint(
+                "CK_S3RolleDokumente_GenauEinOwner",
+                "(\"RoleId\" IS NOT NULL) <> (\"RollenDefinitionId\" IS NOT NULL)"));
         });
 
         // ── S3PersonRoleAssignment (Unique: [UserId, RoleId]) ─────────────
