@@ -1,3 +1,0 @@
-﻿<Project>
-  <Import Project="../buildMultiTargeting/BandSpirit.Api.props" />
-</Project>

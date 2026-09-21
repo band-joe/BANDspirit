@@ -13,7 +13,7 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { useToast } from '@/hooks/use-toast';
-import { UserCog, Plus, Search, Shield, Mail, UserCheck, UserX, Link2, Pencil, Trash2 } from 'lucide-react';
+import { UserCog, Plus, Search, Shield, Mail, UserCheck, UserX, Link2, Pencil } from 'lucide-react';
 import { hasPermission, getRoleLabel } from '@/lib/rbac';
 import { apiClient } from '@/lib/api-client';
 
@@ -238,15 +238,15 @@ export default function BenutzerPage() {
                               <Pencil className="h-4 w-4" />
                             </Button>
                           </Link>
-                          {hasPermission(role, 'user:delete') && u.id !== currentUserId && (
+                          {hasPermission(role, 'user:update') && u.id !== currentUserId && (
                             <Button
                               variant="ghost"
                               size="icon"
                               className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10"
-                              title="Löschen"
+                              title="Deaktivieren"
                               onClick={() => setDeleteTarget({ id: u.id, name: u.name })}
                             >
-                              <Trash2 className="h-4 w-4" />
+                              <UserX className="h-4 w-4" />
                             </Button>
                           )}
                         </div>
