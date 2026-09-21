@@ -33,17 +33,40 @@ public class DashboardController : ControllerBase
     [Authorize(Policy = Permissions.DashboardRead)]
     public async Task<IActionResult> Get()
     {
+        // APP-14-Fix: Statt acht sequenzieller COUNT-Roundtrips (total/aktiv je
+        // Tabelle einzeln) je Tabelle nur noch ein Roundtrip mit bedingter
+        // Zählung (COUNT(*) FILTER-Äquivalent über GroupBy+Count(predicate)).
+        var benutzerStats = await _db.Users
+            .GroupBy(u => 1)
+            .Select(g => new { Total = g.Count(), Aktiv = g.Count(u => u.Aktiv) })
+            .FirstOrDefaultAsync() ?? new { Total = 0, Aktiv = 0 };
+
+        var kreisStats = await _db.S3Circles
+            .GroupBy(c => 1)
+            .Select(g => new { Total = g.Count(), Aktiv = g.Count(c => c.IsActive) })
+            .FirstOrDefaultAsync() ?? new { Total = 0, Aktiv = 0 };
+
+        var driverStats = await _db.S3Drivers
+            .GroupBy(d => 1)
+            .Select(g => new { Total = g.Count(), Offen = g.Count(d => d.Entscheid == null || d.Entscheid == "") })
+            .FirstOrDefaultAsync() ?? new { Total = 0, Offen = 0 };
+
+        var ticketStats = await _db.SupportTickets
+            .GroupBy(t => 1)
+            .Select(g => new { Total = g.Count(), Offen = g.Count(t => t.Status == "OFFEN") })
+            .FirstOrDefaultAsync() ?? new { Total = 0, Offen = 0 };
+
         // Kennzahlen (Struktur "stats" wie vom Frontend erwartet).
         var stats = new
         {
-            totalUsers = await _db.Users.CountAsync(),
-            activeUsers = await _db.Users.CountAsync(u => u.Aktiv),
-            totalCircles = await _db.S3Circles.CountAsync(),
-            activeCircles = await _db.S3Circles.CountAsync(c => c.IsActive),
-            totalDrivers = await _db.S3Drivers.CountAsync(),
-            offeneDrivers = await _db.S3Drivers.CountAsync(d => d.Entscheid == null || d.Entscheid == ""),
-            totalTickets = await _db.SupportTickets.CountAsync(),
-            offeneTickets = await _db.SupportTickets.CountAsync(t => t.Status == "OFFEN")
+            totalUsers = benutzerStats.Total,
+            activeUsers = benutzerStats.Aktiv,
+            totalCircles = kreisStats.Total,
+            activeCircles = kreisStats.Aktiv,
+            totalDrivers = driverStats.Total,
+            offeneDrivers = driverStats.Offen,
+            totalTickets = ticketStats.Total,
+            offeneTickets = ticketStats.Offen
         };
 
         // Benutzer-Namen zur Auflösung von CreatedById (Audit-Feld ist ein
