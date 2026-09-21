@@ -1,0 +1,171 @@
+@startuml BANDspirit-Frontend-Komponenten
+' ============================================================================
+' BANDspirit V2 — Frontend-Komponentendiagramm
+' Next.js 14 (App Router), NextAuth, React Query
+' Stand: 2026-09-21
+' ============================================================================
+
+title BANDspirit V2 — Frontend-Komponentendiagramm (Next.js App Router)
+
+skinparam backgroundColor #FFFFFF
+skinparam shadowing false
+skinparam defaultFontName "Helvetica"
+skinparam defaultFontSize 12
+skinparam roundcorner 8
+skinparam ArrowColor #37474F
+skinparam componentStyle rectangle
+
+skinparam package {
+  BackgroundColor #FFFFFF
+  BorderColor #90A4AE
+}
+skinparam component {
+  BackgroundColor #E1F5FE
+  BorderColor #0288D1
+}
+skinparam cloud {
+  BackgroundColor #FFF8E1
+  BorderColor #F9A825
+}
+skinparam actor {
+  BackgroundColor #C8E6C9
+  BorderColor #388E3C
+}
+
+actor "Benutzer\n(Browser)" as User
+cloud "BANDspirit API\n(ASP.NET Core, REST + OData)" as Backend
+
+' ── Öffentliche Seiten (kein Login) ────────────────────────────────────────
+package "Öffentliche Routen" as Public #FFF3E0 {
+  component "login" as Login
+  component "signup" as Signup
+  component "passwort-vergessen /\npasswort-zuruecksetzen" as PwReset
+  component "email-bestaetigen" as EmailVerify
+}
+
+' ── Middleware / Route-Guard ────────────────────────────────────────────────
+component "**middleware.ts**\nServerseitiger Routen-Schutz\n(/admin/*, rollenbasierte\nSeiten-/Tab-Whitelist)" as Middleware #FFCCBC
+
+' ── Dashboard-Routengruppe (dashboard) ──────────────────────────────────────
+package "Dashboard-Routengruppe  (dashboard)" as Dashboard #E8F5E9 {
+
+  package "Organisation" as OrgPages {
+    component "dashboard\n(Startseite)" as DashHome
+    component "organisation/kreise/[id]\n+ organisation (Übersicht)" as Kreise
+    component "organisation/graph\n(Organigramm, SVG)" as Graph
+    component "organisation/meetings" as Meetings
+    component "organisation/spannungen/[id]\n(Driver + WorkItems)" as Spannungen
+    component "organisation/bi-guide" as BiGuide
+    component "organisation/bi-kompass" as BiKompass
+  }
+
+  package "Administration" as AdminPages {
+    component "benutzer / benutzer/[id]\n+ benutzer/neu" as Benutzer
+    component "einstellungen/*\n(S3-Rollen, Benutzerrollen,\nBerechtigungen, Firma,\nLebenszyklus, OKR/KPI,\nBI-Guide-Kategorien)" as Einstellungen
+    component "mail-verteiler" as MailVerteiler
+    component "application-log" as AppLogPage
+  }
+
+  package "Hilfe" as HelpPages {
+    component "hilfe" as Hilfe
+    component "dokumentation/*\n(fachlich, technisch,\ncontext-versionen)" as DokuPages
+    component "ma-profil" as MaProfil
+  }
+}
+
+' ── NextAuth (API-Route) ────────────────────────────────────────────────────
+component "app/api/auth/[...nextauth]\n+ app/api/auth/logout\n(NextAuth Route Handler)" as NextAuthRoute #D1C4E9
+
+' ── Shared Libraries ─────────────────────────────────────────────────────────
+package "lib/  (Shared Libraries)" as Lib #ECEFF1 {
+  component "api-client.ts\nBearer-Token, ApiError,\ngetAllPages (OData-Paging)" as ApiClient
+  component "odata.ts\nODataQuery-Builder,\nodataQueries" as OData
+  component "auth-options.ts\nNextAuth-Konfiguration\n(Credentials + Entra ID)" as AuthOptions
+  component "rbac.ts\nClient-seitiges\nPermission-Modell" as Rbac
+  component "nav-access.ts\nSeiten-/Tab-Whitelist\npro Rolle" as NavAccess
+  component "query-keys.ts\nReact-Query Cache-Keys" as QueryKeys
+  component "kpi-utils.ts / okr-utils.ts /\ndashboard-helpers.ts" as Utils
+  component "utils.ts\n(u. a. stripHtml)" as CoreUtils
+  component "validations.ts" as Validations
+}
+
+' ── Hooks ─────────────────────────────────────────────────────────────────────
+package "hooks/  (React-Query-Wrapper)" as Hooks #FCE4EC {
+  component "use-odata.ts /\nuse-odata-mutation.ts" as UseOData
+  component "use-permissions.ts" as UsePermissions
+  component "use-stammdaten.ts" as UseStammdaten
+  component "use-file-upload.ts" as UseFileUpload
+  component "use-session-token.ts" as UseSessionToken
+}
+
+' ── Shared Components ────────────────────────────────────────────────────────
+package "components/  (Fachliche Komponenten)" as SharedComponents #F3E5F5 {
+  component "dashboard-shell.tsx\n(AppShell, Sidebar)" as DashboardShell
+  component "permission-guard.tsx" as PermissionGuard
+  component "stammdaten-verwaltung.tsx /\nstammdaten-select.tsx" as StammdatenUI
+  component "member-avatar.tsx /\nkontakt-tag-selector.tsx" as MemberUI
+  component "providers.tsx\n(ThemeProvider, Toaster,\nChunkLoadErrorHandler)" as Providers
+}
+
+' ── UI-Design-System ──────────────────────────────────────────────────────────
+component "components/ui/*\nDesign-System\n(AppShell, PageHeader,\nanimate/*, ...)" as UiSystem #FFF9C4
+
+' ── Verbindungen ────────────────────────────────────────────────────────────
+User --> Public
+User --> Dashboard : nach Login
+
+Public --> AuthOptions : Login-Formular
+Dashboard ..> Middleware : jeder Request\n(Next.js Middleware)
+Middleware --> NavAccess
+Middleware --> Rbac
+
+AuthOptions --> NextAuthRoute
+NextAuthRoute --> Backend : POST /api/auth/login\n(serverseitig)
+
+OrgPages --> ApiClient
+AdminPages --> ApiClient
+HelpPages --> ApiClient
+OrgPages --> UseOData
+AdminPages --> UseOData
+UseOData --> ApiClient
+UseOData --> QueryKeys
+ApiClient --> OData
+ApiClient --> Backend : REST/OData\n(Bearer JWT)
+
+AdminPages --> UsePermissions
+OrgPages --> UsePermissions
+UsePermissions --> Rbac
+
+AdminPages --> StammdatenUI
+StammdatenUI --> UseStammdaten
+UseStammdaten --> UseOData
+
+OrgPages --> MemberUI
+OrgPages --> UseFileUpload
+UseFileUpload --> ApiClient
+
+Dashboard --> DashboardShell
+DashboardShell --> UiSystem
+DashboardShell --> PermissionGuard
+PermissionGuard --> Rbac
+
+OrgPages --> UiSystem
+AdminPages --> UiSystem
+HelpPages --> UiSystem
+Public --> UiSystem
+
+Dashboard --> Providers
+Dashboard --> CoreUtils
+OrgPages --> CoreUtils : stripHtml() für\nZweck/Verantwortlichkeit
+
+' ── Legende ─────────────────────────────────────────────────────────────────
+legend right
+  |= Element |= Bedeutung |
+  | Paket | Verzeichnis / logische Gruppe |
+  | Komponente | Seite(n), Modul oder Datei-Gruppe |
+  | Wolke | Externes System (Backend-API) |
+  | durchgezogen | direkte Nutzung/Import |
+  | gestrichelt | indirekt (Middleware, serverseitiger Call) |
+endlegend
+
+@enduml

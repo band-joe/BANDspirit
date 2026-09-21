@@ -1,0 +1,356 @@
+@startuml BANDspirit-Backend-Klassendiagramm
+' ============================================================================
+' BANDspirit V2 — Backend-Klassendiagramm (Domänenmodell)
+' ASP.NET Core 8 / EF Core 8 — Models/*.cs
+' Zeigt die zentralen Entitätsklassen, ihre Vererbung von AuditableEntity und
+' die wichtigsten Beziehungen. Property-Listen sind auf die fachlich
+' relevanten/identifizierenden Felder reduziert (vollständige Spalten siehe
+' ERD-Diagramm).
+' Stand: 2026-09-21
+' ============================================================================
+
+title BANDspirit V2 — Backend-Klassendiagramm (Domänenmodell)
+
+skinparam backgroundColor #FFFFFF
+skinparam shadowing false
+skinparam defaultFontName "Helvetica"
+skinparam defaultFontSize 12
+skinparam roundcorner 6
+skinparam ArrowColor #37474F
+skinparam classAttributeIconSize 0
+
+skinparam class {
+  BackgroundColor #FFFFFF
+  BorderColor #607D8B
+  HeaderBackgroundColor #ECEFF1
+}
+
+' ── Basisklasse ──────────────────────────────────────────────────────────────
+abstract class AuditableEntity {
+  +CreatedAt: DateTime
+  +UpdatedAt: DateTime
+  +CreatedById: string?
+  +ChangedById: string?
+  +DateFrom: DateTimeOffset?  ' "Gültig ab"
+  +DateTo: DateTimeOffset?    ' "Gültig bis"
+}
+
+' ── Identität & Zugriff ──────────────────────────────────────────────────────
+package "Identität & Zugriff" #E8EAF6 {
+  class User {
+    +Id: Guid
+    +Name: string
+    +Email: string
+    +Password: string?  ' BCrypt-Hash, [JsonIgnore]
+    +Role: string
+    +RoleId: Guid?
+    +Aktiv: bool
+    +EmailVerified: bool
+    +AbacusPersonalnummer: string?
+  }
+  class BenutzerRolle {
+    +Id: Guid
+    +Name: string
+    +IstSystemAdmin: bool
+    +Aktiv: bool
+  }
+  class RolePermission {
+    +Id: Guid
+    +Role: string
+    +RoleId: Guid?
+    +Permission: string
+  }
+  class RefreshToken {
+    +Id: Guid
+    +Token: string
+    +UserId: Guid
+    +ExpiresAt: DateTime
+  }
+  class PasswordResetToken {
+    +Id: Guid
+    +Token: string  ' SHA-256-Hash
+    +UserId: Guid
+    +ExpiresAt: DateTime
+  }
+
+  AuditableEntity <|-- User
+  AuditableEntity <|-- BenutzerRolle
+  AuditableEntity <|-- RolePermission
+  AuditableEntity <|-- RefreshToken
+  AuditableEntity <|-- PasswordResetToken
+  User "1" -- "0..*" RefreshToken
+  User "1" -- "0..*" PasswordResetToken
+  User "0..*" --> "0..1" BenutzerRolle : RoleId
+}
+
+' ── Organisation (Soziokratie 3.0) ───────────────────────────────────────────
+package "Organisation (S3)" #E0F2F1 {
+  class S3Circle {
+    +Id: Guid
+    +Name: string
+    +Zweck: string?
+    +ParentId: Guid?
+    +RootId: Guid?
+    +IsActive: bool
+    +LifecyclePhase: string?
+  }
+  class S3RollenDefinition {
+    +Id: Guid
+    +Name: string
+    +Zweck: string?
+    +Verantwortlichkeit: string?
+    +IsLeadLink: bool
+    +Aktiv: bool
+  }
+  class S3Role {
+    +Id: Guid
+    +CircleId: Guid
+    +RollenDefinitionId: Guid
+    +IsCoordinator: bool
+    +IsRepresentative: bool
+    +IsFacilitator: bool
+    +Aktiv: bool  ' DB-15: nur deaktivierbar, nie löschbar
+  }
+  class S3PersonRoleAssignment {
+    +Id: Guid
+    +UserId: Guid
+    +RoleId: Guid
+  }
+  class S3RolleKennzahl {
+    +Id: Guid
+    +RollenDefinitionId: Guid
+    +Bezeichnung: string
+    +Zielwert: string?
+  }
+  class S3RolleDokument {
+    +Id: Guid
+    +RollenDefinitionId: Guid
+    +Dateiname: string
+    +StoragePfad: string
+  }
+  class S3CircleReview {
+    +Id: Guid
+    +CircleId: Guid
+    +Ergebnis: string?
+  }
+  class S3CircleLebenszyklus {
+    +Id: Guid
+    +CircleId: Guid
+  }
+  class S3LebenszyklusPhase {
+    +Id: Guid
+    +Name: string  ' Entwurf/Aktiv/In Review/Ruhend/Aufgelöst
+  }
+
+  AuditableEntity <|-- S3Circle
+  AuditableEntity <|-- S3RollenDefinition
+  AuditableEntity <|-- S3Role
+  AuditableEntity <|-- S3PersonRoleAssignment
+  AuditableEntity <|-- S3RolleKennzahl
+  AuditableEntity <|-- S3RolleDokument
+  AuditableEntity <|-- S3CircleReview
+  AuditableEntity <|-- S3CircleLebenszyklus
+  AuditableEntity <|-- S3LebenszyklusPhase
+
+  S3Circle "0..1" -- "0..*" S3Circle : Parent/Sub-Kreise
+  S3Circle "1" *-- "0..*" S3Role
+  S3RollenDefinition "1" *-- "0..*" S3Role
+  S3RollenDefinition "1" *-- "0..*" S3RolleKennzahl
+  S3RollenDefinition "1" *-- "0..*" S3RolleDokument
+  S3Role "1" *-- "0..*" S3PersonRoleAssignment
+  User "1" -- "0..*" S3PersonRoleAssignment
+  S3Circle "1" *-- "0..*" S3CircleReview
+  S3Circle "1" *-- "0..*" S3CircleLebenszyklus
+}
+
+' ── Meetings & Governance (Consent-Prozess) ──────────────────────────────────
+package "Meetings & Governance" #FFF3E0 {
+  class S3Meeting {
+    +Id: Guid
+    +CircleId: Guid
+    +Status: string  ' GEPLANT/LAUFEND/...
+  }
+  class S3MeetingAgendaItem {
+    +Id: Guid
+    +MeetingId: Guid
+    +Titel: string
+  }
+  class S3Proposal {
+    +Id: Guid
+    +CircleId: Guid
+    +MeetingId: Guid?
+    +Titel: string
+    +Status: string  ' OFFEN/...
+  }
+  class S3Objection {
+    +Id: Guid
+    +ProposalId: Guid
+    +Beschreibung: string?
+    +Status: string
+  }
+  class S3Decision {
+    +Id: Guid
+    +ProposalId: Guid
+    +Beschreibung: string?
+  }
+
+  AuditableEntity <|-- S3Meeting
+  AuditableEntity <|-- S3MeetingAgendaItem
+  AuditableEntity <|-- S3Proposal
+  AuditableEntity <|-- S3Objection
+  AuditableEntity <|-- S3Decision
+
+  S3Circle "1" -- "0..*" S3Meeting
+  S3Meeting "1" *-- "0..*" S3MeetingAgendaItem
+  S3Meeting "0..1" -- "0..*" S3Proposal
+  S3Proposal "1" *-- "0..*" S3Objection
+  S3Proposal "1" o-- "0..1" S3Decision
+}
+
+' ── Spannungen (Drivers) ─────────────────────────────────────────────────────
+package "Spannungen" #FBE9E7 {
+  class S3Driver {
+    +Id: Guid
+    +CircleId: Guid
+    +Titel: string
+    +Prioritaet: string
+    +Status: string  ' OFFEN/ERLEDIGT
+  }
+  class SpannungWorkItem {
+    +Id: Guid
+    +DriverId: Guid
+    +Titel: string
+    +Status: string  ' OFFEN/ERLEDIGT
+  }
+
+  AuditableEntity <|-- S3Driver
+  AuditableEntity <|-- SpannungWorkItem
+  S3Circle "1" -- "0..*" S3Driver
+  S3Driver "1" *-- "0..*" SpannungWorkItem
+}
+
+' ── OKR & KPI ─────────────────────────────────────────────────────────────────
+package "OKR & KPI" #E1F5FE {
+  class OkrZyklus {
+    +Id: Guid
+    +Titel: string
+  }
+  class OKR {
+    +Id: Guid
+    +Titel: string
+    +Status: string
+    +ZyklusId: Guid?
+    +CircleId: Guid?  ' null = organisationsweit
+  }
+  class KeyResult {
+    +Id: Guid
+    +OkrId: Guid
+    +Titel: string
+    +Status: string
+  }
+  class KpiDefinition {
+    +Id: Guid
+    +Name: string
+    +Zielwert: double?
+    +CircleId: Guid?  ' null = organisationsweit
+  }
+  class KpiMeasurement {
+    +Id: Guid
+    +KpiDefinitionId: Guid
+    +Status: string  ' GRUEN/...
+  }
+
+  AuditableEntity <|-- OkrZyklus
+  AuditableEntity <|-- OKR
+  AuditableEntity <|-- KeyResult
+  AuditableEntity <|-- KpiDefinition
+  AuditableEntity <|-- KpiMeasurement
+
+  OkrZyklus "0..1" -- "0..*" OKR
+  S3Circle "0..1" -- "0..*" OKR
+  S3Circle "0..1" -- "0..*" KpiDefinition
+  OKR "1" *-- "0..*" KeyResult
+  KpiDefinition "1" *-- "0..*" KpiMeasurement
+}
+
+' ── Hilfe & Support ───────────────────────────────────────────────────────────
+package "Hilfe & Support" #F3E5F5 {
+  class SupportTicket {
+    +Id: Guid
+    +Titel: string
+    +Status: string
+    +Prioritaet: string
+    +ErstellerId: Guid?
+  }
+  class FAQ {
+    +Id: Guid
+    +Kategorie: string?
+  }
+
+  AuditableEntity <|-- SupportTicket
+  AuditableEntity <|-- FAQ
+  User "0..1" -- "0..*" SupportTicket : Ersteller
+}
+
+' ── BI-Kompass & BI-Guide ─────────────────────────────────────────────────────
+package "BI-Kompass & BI-Guide" #FFF9C4 {
+  class BIKompassVersion {
+    +Id: Guid
+    +Titel: string
+    +Version: int
+  }
+  class BIGuideNews {
+    +Id: Guid
+    +Titel: string
+    +Kategorie: string?
+  }
+  class BiGuideKategorie {
+    +Id: Guid
+    +Name: string
+  }
+
+  AuditableEntity <|-- BIKompassVersion
+  AuditableEntity <|-- BIGuideNews
+  AuditableEntity <|-- BiGuideKategorie
+  BiGuideKategorie "0..1" -- "0..*" BIGuideNews
+}
+
+' ── Stammdaten, Firma, Mail-Verteiler, Audit ─────────────────────────────────
+package "Stammdaten & Sonstiges" #ECEFF1 {
+  class Stammdaten {
+    +Id: Guid
+    +Kategorie: string
+    +Code: string
+    +Wert: string
+  }
+  class Firma <<Singleton>> {
+    +Id: string = "singleton"
+    +Firmenname: string
+  }
+  class MailVerteiler {
+    +Id: Guid
+    +Name: string
+  }
+  class MailVerteilerBenutzer {
+    +Id: Guid
+    +MailVerteilerId: Guid
+    +UserId: Guid
+  }
+  class AppLog {
+    +Id: Guid
+    +Modul: string
+    +Aktion: string
+    +EntityId: string?
+    +Details: string  ' JSON
+  }
+
+  AuditableEntity <|-- Stammdaten
+  AuditableEntity <|-- Firma
+  AuditableEntity <|-- MailVerteiler
+  AuditableEntity <|-- MailVerteilerBenutzer
+  AuditableEntity <|-- AppLog
+  MailVerteiler "1" *-- "0..*" MailVerteilerBenutzer
+  User "1" -- "0..*" MailVerteilerBenutzer
+}
+
+@enduml
