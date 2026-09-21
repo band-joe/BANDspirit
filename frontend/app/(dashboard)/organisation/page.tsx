@@ -23,9 +23,9 @@ import { ODataResponse } from '@/lib/odata';
 import { ApiError } from '@/lib/errors';
 import { CircleListItem, DriverListItem, OrgUser, OrgUserProfile, DashboardCircleReview, DashboardApiResponse } from '@/lib/types';
 import { sortCirclesByReview } from '@/lib/dashboard-helpers';
-import { formatDate } from '@/lib/utils';
+import { formatDate, stripHtml } from '@/lib/utils';
 import { MemberAvatar } from '@/components/member-avatar';
-import { CircleDot, Plus, Search, Users, Calendar, Zap, CheckCircle2, ChevronRight, ChevronDown, Network, AlertTriangle, UsersRound, Crown, Handshake, Gavel, UserCircle, Mail, Phone, Clock, UserMinus } from 'lucide-react';
+import { CircleDot, Plus, Search, Users, Calendar, Zap, CheckCircle2, ChevronRight, ChevronDown, Network, AlertTriangle, UsersRound, Crown, Handshake, Gavel, UserCircle, Mail, Phone, Clock, X } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { toast } from 'sonner';
 
@@ -507,7 +507,7 @@ export default function OrganisationPage() {
                 )}
               </div>
               {circle.purpose && (
-                <p className="text-sm text-muted-foreground truncate mt-0.5">Zweck: {circle.purpose}</p>
+                <p className="text-sm text-muted-foreground truncate mt-0.5">Zweck: {stripHtml(circle.purpose)}</p>
               )}
               <div className="flex items-center gap-4 mt-1 text-xs text-muted-foreground">
                 <span className="flex items-center gap-1"><Users className="h-3 w-3" /> {circle._count.roles} Rollen</span>
@@ -1332,7 +1332,7 @@ export default function OrganisationPage() {
                     </div>
                     <div className="mt-2 flex flex-wrap gap-1.5 pl-11">
                       {m.roles.map((r, j) => (
-                        <Badge key={j} variant="secondary" className="text-xs flex items-center gap-1">
+                        <Badge key={j} variant="secondary" className="text-xs flex items-center gap-1 pr-1">
                           {r.isCoordinator && <Crown className="h-3 w-3" />}
                           {r.isRepresentative && <Handshake className="h-3 w-3" />}
                           {r.isFacilitator && <Gavel className="h-3 w-3" />}
@@ -1340,8 +1340,12 @@ export default function OrganisationPage() {
                           {hasPermission(role, 'org:role:unassign') && (
                             <AlertDialog>
                               <AlertDialogTrigger asChild>
-                                <button type="button" className="ml-0.5 rounded hover:bg-black/10" aria-label={`${m.name} von Rolle „${r.name}“ entfernen`}>
-                                  <UserMinus className="h-3 w-3" />
+                                <button
+                                  type="button"
+                                  className="ml-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-background/80 text-muted-foreground hover:bg-destructive hover:text-destructive-foreground"
+                                  aria-label={`${m.name} von Rolle „${r.name}“ entfernen`}
+                                >
+                                  <X className="h-3 w-3" />
                                 </button>
                               </AlertDialogTrigger>
                               <AlertDialogContent>
