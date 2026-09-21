@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback } from 'react';
 import { useSession } from 'next-auth/react';
-import { useSearchParams } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { hasPermission, Permission } from '@/lib/rbac';
 import { apiClient } from '@/lib/api-client';
 import { ODataResponse } from '@/lib/odata';
@@ -82,9 +82,21 @@ export default function HilfePage() {
   const canManageTickets = hasPermission(role, 'ticket:update' as Permission);
   const canManageFaq = hasPermission(role, 'faq:manage' as Permission);
   const searchParams = useSearchParams();
+  const router = useRouter();
 
+  // UI-01-Fix: Die URL ist die alleinige Quelle für den aktiven Tab, statt nur
+  // beim ersten Rendern in einen lokalen State übernommen zu werden. Ein
+  // späterer Sidebar-Klick (gleiche Route, geänderter ?tab=-Parameter) hat
+  // zuvor keinen Re-Render von activeTab ausgelöst, wodurch URL, Sidebar-
+  // Auswahl und sichtbarer Inhalt auseinanderliefen. Ein In-Page-Tab-Wechsel
+  // schreibt umgekehrt den Parameter zurück in die URL, damit Sidebar,
+  // Back/Forward und Reload konsistent bleiben.
   const tabParam = searchParams?.get('tab');
-  const [activeTab, setActiveTab] = useState(tabParam === 'faq' ? 'faq' : tabParam === 'suche' ? 'suche' : 'tickets');
+  const activeTab = tabParam === 'faq' ? 'faq' : tabParam === 'suche' ? 'suche' : 'tickets';
+
+  const handleTabChange = (value: string) => {
+    router.push(`/hilfe?tab=${value}`);
+  };
 
   return (
     <div className="space-y-6">
@@ -95,7 +107,7 @@ export default function HilfePage() {
         </p>
       </div>
 
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+      <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
         <TabsList className="grid w-full grid-cols-3 max-w-lg">
           <TabsTrigger value="suche" className="flex items-center gap-2">
             <SearchIcon className="h-4 w-4" />
