@@ -149,29 +149,14 @@ public class ProfilController : ControllerBase
 
         // 4. Lead-Link je Kreis bestimmen – ohne den Benutzer selbst. Kreise
         //    ohne (fremden) Lead-Link werden übersprungen.
+        // APP-14-Fix: Ein gemeinsamer Roundtrip für ALLE Kreise der Kette statt
+        // eines Einzel-Roundtrips pro Ebene/Kreis.
+        var leadLinkProKreis = await LeadLinkNamenProKreisAsync(reihenfolge, benutzerAusschliessen: userId);
+
         var ergebnis = new List<object>();
         foreach (var kreisId in reihenfolge)
         {
-            // APP-15 (P005): Deterministisch nach Name sortieren, nur aktive Benutzer
-            // berücksichtigen und Gültigkeitszeitraum der Zuweisung prüfen.
-            // FirstOrDefaultAsync ohne OrderBy liefert beliebige Treffer bei mehreren Trägern.
-            var jetzt = DateTime.UtcNow;
-            var leadLinkName = await _db.S3PersonRoleAssignments
-                .AsNoTracking()
-                .Where(pra => pra.Role != null
-                              && pra.Role.CircleId == kreisId
-                              && pra.Role.RollenDefinition != null
-                              && pra.Role.RollenDefinition.IsLeadLink
-                              && pra.UserId != userId
-                              && pra.User != null
-                              && pra.User.Aktiv
-                              && (pra.DateFrom == null || pra.DateFrom <= jetzt)
-                              && (pra.DateTo == null || pra.DateTo >= jetzt))
-                .OrderBy(pra => pra.User!.Name)
-                .Select(pra => pra.User!.Name)
-                .FirstOrDefaultAsync();
-
-            if (string.IsNullOrEmpty(leadLinkName))
+            if (!leadLinkProKreis.TryGetValue(kreisId, out var leadLinkName))
             {
                 continue;
             }
@@ -184,6 +169,54 @@ public class ProfilController : ControllerBase
             });
         }
 
+        return ergebnis;
+    }
+
+    /// <summary>
+    /// APP-14-Fix: Ermittelt den (deterministisch nach Name sortierten, nur
+    /// aktive Benutzer und gültige Zuweisungszeiträume berücksichtigenden)
+    /// Lead-Link-Namen für JEDEN der angegebenen Kreise in einem einzigen
+    /// Roundtrip, statt pro Kreis einzeln nachzufragen. Kreise ohne (ggf. ohne
+    /// den ausgeschlossenen Benutzer verbleibenden) Lead-Link fehlen im
+    /// Ergebnis-Dictionary.
+    /// </summary>
+    private async Task<Dictionary<Guid, string>> LeadLinkNamenProKreisAsync(
+        IReadOnlyCollection<Guid> kreisIds, Guid? benutzerAusschliessen)
+    {
+        if (kreisIds.Count == 0)
+        {
+            return new Dictionary<Guid, string>();
+        }
+
+        var jetzt = DateTime.UtcNow;
+        var kandidaten = await _db.S3PersonRoleAssignments
+            .AsNoTracking()
+            .Where(pra => pra.Role != null
+                          && kreisIds.Contains(pra.Role.CircleId)
+                          && pra.Role.RollenDefinition != null
+                          && pra.Role.RollenDefinition.IsLeadLink
+                          && (benutzerAusschliessen == null || pra.UserId != benutzerAusschliessen)
+                          && pra.User != null
+                          && pra.User.Aktiv
+                          && (pra.DateFrom == null || pra.DateFrom <= jetzt)
+                          && (pra.DateTo == null || pra.DateTo >= jetzt))
+            // In der Datenbank nach Kreis und Name sortieren, damit der erste
+            // Treffer je Kreis beim Zusammenführen unten deterministisch der
+            // alphabetisch erste ist (gleiches Verhalten wie zuvor pro Kreis
+            // einzeln mit OrderBy(Name).FirstOrDefault()).
+            .OrderBy(pra => pra.Role!.CircleId)
+            .ThenBy(pra => pra.User!.Name)
+            .Select(pra => new { CircleId = pra.Role!.CircleId, Name = pra.User!.Name })
+            .ToListAsync();
+
+        var ergebnis = new Dictionary<Guid, string>();
+        foreach (var kandidat in kandidaten)
+        {
+            if (!ergebnis.ContainsKey(kandidat.CircleId))
+            {
+                ergebnis[kandidat.CircleId] = kandidat.Name;
+            }
+        }
         return ergebnis;
     }
 
@@ -257,41 +290,25 @@ public class ProfilController : ControllerBase
             .Distinct()
             .ToListAsync();
 
-        var kreise = new List<object>();
-        foreach (var kreisId in kreisIds)
-        {
-            var kreis = await _db.S3Circles
-                .AsNoTracking()
-                .FirstOrDefaultAsync(c => c.Id == kreisId);
-            if (kreis is null)
-            {
-                continue;
-            }
+        // APP-14-Fix: Statt pro Kreis zwei Einzel-Roundtrips (Kreis laden,
+        // Lead-Link laden) je EINEN Roundtrip für ALLE Kreise gemeinsam - die
+        // Antwortzeit wuchs zuvor linear mit der Anzahl Kreise pro Person.
+        var kreisNamen = await _db.S3Circles
+            .AsNoTracking()
+            .Where(c => kreisIds.Contains(c.Id))
+            .Select(c => new { c.Id, c.Name })
+            .ToListAsync();
 
-            // APP-15 (P005): Lead-Link deterministisch nach Name sortieren,
-            // nur aktive Benutzer und gültige Zuweisungszeiträume berücksichtigen.
-            var jetztTs = DateTime.UtcNow;
-            var leadLinkName = await _db.S3PersonRoleAssignments
-                .AsNoTracking()
-                .Where(pra => pra.Role != null
-                              && pra.Role.CircleId == kreisId
-                              && pra.Role.RollenDefinition != null
-                              && pra.Role.RollenDefinition.IsLeadLink
-                              && pra.User != null
-                              && pra.User.Aktiv
-                              && (pra.DateFrom == null || pra.DateFrom <= jetztTs)
-                              && (pra.DateTo == null || pra.DateTo >= jetztTs))
-                .OrderBy(pra => pra.User!.Name)
-                .Select(pra => pra.User!.Name)
-                .FirstOrDefaultAsync();
+        var leadLinkProKreis = await LeadLinkNamenProKreisAsync(kreisIds, benutzerAusschliessen: null);
 
-            // Kreis-ID wird bewusst NICHT ausgegeben (Anforderung: id ist hidden).
-            kreise.Add(new
+        // Kreis-ID wird bewusst NICHT ausgegeben (Anforderung: id ist hidden).
+        var kreise = kreisNamen
+            .Select(k => new
             {
-                name = kreis.Name,
-                leadLink = leadLinkName
-            });
-        }
+                name = k.Name,
+                leadLink = leadLinkProKreis.TryGetValue(k.Id, out var name) ? name : null
+            })
+            .ToList<object>();
 
         return new
         {
