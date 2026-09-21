@@ -17,6 +17,16 @@ public class S3CircleReview : AuditableEntity
     /// <summary>Protokolltext.</summary>
     public string? Protokoll { get; set; }
 
-    /// <summary>Ergebnis des Reviews.</summary>
+    /// <summary>Ergebnis des Reviews: WEITERFUEHREN / KONSOLIDIEREN / ARCHIVIEREN.</summary>
     public string? Ergebnis { get; set; }
+
+    /// <summary>
+    /// UI-30-Fix: Notizen/Begründung zum Review. Dieses Modell existierte
+    /// bereits, hatte aber weder Controller noch OData-Registrierung - war
+    /// über die API komplett unerreichbar.
+    /// </summary>
+    public string? Notizen { get; set; }
+
+    /// <summary>Vereinbarte Massnahmen aus dem Review (optional).</summary>
+    public string? Massnahmen { get; set; }
 }
