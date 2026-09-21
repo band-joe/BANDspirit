@@ -35,6 +35,16 @@ public class BiKompassVersionsController : ODataController
         return eintrag is null ? NotFound() : Ok(eintrag);
     }
 
+    /// <summary>
+    /// POST /odata/BiKompassVersions – Neue Version veröffentlichen.
+    /// </summary>
+    /// <remarks>
+    /// UI-26-Fix: Es gab zuvor keinerlei Mechanismus, der eine neu
+    /// veröffentlichte Version aktiv setzt (IsAktiv wurde vom Client nie
+    /// gesendet, defaultete auf false) - "Veröffentlichen" hatte dadurch nie
+    /// sichtbare Wirkung. Neue Version wird jetzt atomar aktiv gesetzt, alle
+    /// anderen deaktiviert (genau eine aktive Version zu jedem Zeitpunkt).
+    /// </remarks>
     [HttpPost]
     [Authorize(Policy = Permissions.BiGuideManage)]
     public async Task<IActionResult> Post([FromBody] BIKompassVersion eintrag)
@@ -43,8 +53,15 @@ public class BiKompassVersionsController : ODataController
         {
             return BadRequest(ModelState);
         }
+
+        eintrag.IsAktiv = true;
+
+        await using var tx = await _db.Database.BeginTransactionAsync();
+        await _db.BIKompassVersionen.Where(v => v.IsAktiv).ExecuteUpdateAsync(s => s.SetProperty(v => v.IsAktiv, false));
         _db.BIKompassVersionen.Add(eintrag);
         await _db.SaveChangesAsync();
+        await tx.CommitAsync();
+
         return Created(eintrag);
     }
 }
