@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -47,6 +48,7 @@ const KATEGORIE_FALLBACK_FARBE = 'bg-gray-100 text-gray-600 border-gray-200';
 
 export default function BIGuidePage() {
   const { data: session } = useSession() || {};
+  const searchParams = useSearchParams();
   const role = (session?.user as any)?.role ?? '';
   const userId = (session?.user as any)?.id ?? '';
   const canManage = hasPermission(role, 'biguide:manage');
@@ -95,6 +97,16 @@ export default function BIGuidePage() {
   }, [session]);
 
   useEffect(() => { fetchNews(); fetchKategorien(); }, [fetchNews, fetchKategorien]);
+
+  // UI-10-Fix: Aus der globalen Suche verlinkte News (?newsId=...) direkt
+  // aufklappen und dorthin scrollen, statt nur auf die Gesamtliste zu verweisen.
+  useEffect(() => {
+    const newsId = searchParams?.get('newsId');
+    if (!newsId || news.length === 0) return;
+    if (!news.some(n => n.id === newsId)) return;
+    setExpandedId(newsId);
+    document.getElementById(`news-${newsId}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }, [searchParams, news]);
 
   const openCreate = () => {
     setEditingItem(null);
@@ -251,6 +263,7 @@ export default function BIGuidePage() {
             return (
               <motion.div
                 key={item.id}
+                id={`news-${item.id}`}
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: idx * 0.03 }}
