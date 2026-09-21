@@ -168,6 +168,39 @@ export function formatCurrency(value: number | string | null | undefined): strin
   return new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format(num);
 }
 
+/**
+ * Entfernt HTML-Markup aus importierten Freitextfeldern (z. B. Zweck,
+ * Verantwortlichkeit), die aus einer Rich-Text-Quelle stammen und rohe
+ * Tags wie "<p>...</p>" enthalten. Nur für reine Text-ANZEIGE gedacht,
+ * NICHT für Bearbeitungsformulare (dort bleibt der Rohwert unverändert,
+ * damit ein Speichern die Absatzstruktur nicht dauerhaft zerstört).
+ *
+ * Blockendende Tags (</p>, <br>, </div>, </li>) werden vor dem Entfernen
+ * durch ein Leerzeichen ersetzt, damit aneinandergereihte Absätze nicht
+ * wortlos zusammenlaufen (z. B. "<p>A</p><p>B</p>" -> "A B", nicht "AB").
+ *
+ * @param value - Roher Feldwert, ggf. mit HTML-Tags
+ * @returns Reiner Text ohne Tags, mit normalisierten Leerzeichen
+ *
+ * @example
+ * stripHtml('<p>Wir fördern <strong>handwerkliche</strong> Fähigkeiten.</p>')
+ * // 'Wir fördern handwerkliche Fähigkeiten.'
+ */
+export function stripHtml(value: string | null | undefined): string {
+  if (!value) return '';
+  return value
+    .replace(/<\s*(br|\/p|\/div|\/li)\s*\/?>/gi, ' ')
+    .replace(/<[^>]*>/g, '')
+    .replace(/&nbsp;/gi, ' ')
+    .replace(/&amp;/gi, '&')
+    .replace(/&lt;/gi, '<')
+    .replace(/&gt;/gi, '>')
+    .replace(/&quot;/gi, '"')
+    .replace(/&#39;/gi, "'")
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
 export function generateAbrechnungNummer(): string {
   const year = new Date().getFullYear();
   const rand = Math.floor(Math.random() * 9000) + 1000;

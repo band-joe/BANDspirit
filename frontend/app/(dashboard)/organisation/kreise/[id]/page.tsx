@@ -24,10 +24,10 @@ import { hasPermission } from '@/lib/rbac';
 import { apiClient } from '@/lib/api-client';
 import { ODataResponse } from '@/lib/odata';
 import { ApiError } from '@/lib/errors';
-import { formatDate } from '@/lib/utils';
+import { formatDate, stripHtml } from '@/lib/utils';
 import {
   ArrowLeft, Save, CircleDot, Users, Calendar, Zap, CheckCircle2, Plus,
-  Pencil, UserPlus, UserMinus, Star, MessageSquare, AlertTriangle, Clock, ChevronRight, Network, Trash2,
+  Pencil, UserPlus, X, Star, MessageSquare, AlertTriangle, Clock, ChevronRight, Network, Trash2,
   Gauge, Target, LineChart, TrendingUp, TrendingDown, Minus, Edit, CalendarClock,
 } from 'lucide-react';
 import { toast } from 'sonner';
@@ -514,8 +514,8 @@ export default function KreisDetailPage() {
               <Badge variant="outline">↳ {((c.parent as Record<string, unknown>)?.name as string) || ''}</Badge>
             )}
           </div>
-          {c.purpose ? <p className="text-muted-foreground mt-1">Zweck: {String(c.purpose)}</p> : null}
-          {c.verantwortlichkeit ? <p className="text-muted-foreground mt-1">Verantwortlich für: {String(c.verantwortlichkeit)}</p> : null}
+          {c.purpose ? <p className="text-muted-foreground mt-1">Zweck: {stripHtml(String(c.purpose))}</p> : null}
+          {c.verantwortlichkeit ? <p className="text-muted-foreground mt-1">Verantwortlich für: {stripHtml(String(c.verantwortlichkeit))}</p> : null}
         </div>
         {hasPermission(role, 'org:circle:update') && (
           <Button variant="outline" onClick={() => setEditing(!editing)}>
@@ -728,11 +728,19 @@ export default function KreisDetailPage() {
                               {assignments.length === 0 ? (
                                 <span className="text-xs text-muted-foreground italic">Keine Zuweisungen</span>
                               ) : assignments.map(a => (
-                                <div key={a.user.id} className="flex items-center gap-1">
-                                  <Badge variant="secondary" className="text-xs">{a.user.name}</Badge>
+                                <div key={a.user.id} className="flex items-center gap-1 rounded-full bg-secondary pl-2.5 pr-1 py-0.5">
+                                  <span className="text-xs">{a.user.name}</span>
                                   {hasPermission(role, 'org:role:unassign') && (
                                     <AlertDialog>
-                                      <AlertDialogTrigger asChild><Button variant="ghost" size="icon" className="h-5 w-5"><UserMinus className="h-3 w-3" /></Button></AlertDialogTrigger>
+                                      <AlertDialogTrigger asChild>
+                                        <button
+                                          type="button"
+                                          className="ml-1 flex h-4 w-4 items-center justify-center rounded-full bg-background/80 text-muted-foreground hover:bg-destructive hover:text-destructive-foreground"
+                                          aria-label={`${a.user.name} von Rolle „${String(rDef?.name ?? 'Rolle')}“ entfernen`}
+                                        >
+                                          <X className="h-3 w-3" />
+                                        </button>
+                                      </AlertDialogTrigger>
                                       <AlertDialogContent>
                                         <AlertDialogHeader>
                                           <AlertDialogTitle>Zuweisung entfernen?</AlertDialogTitle>

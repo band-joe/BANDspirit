@@ -30,6 +30,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { apiClient, getToken } from '@/lib/api-client';
+import { stripHtml } from '@/lib/utils';
 import { MemberAvatar } from '@/components/member-avatar';
 import {
   CircleDot, Users, Zap, ChevronRight, ChevronDown, UsersRound, Crown, Handshake, Gavel,
@@ -334,7 +335,7 @@ export default function OrganigrammPage() {
                   )}
                 </div>
                 {circle.purpose && (
-                  <p className="text-sm text-muted-foreground truncate mt-0.5">Zweck: {circle.purpose}</p>
+                  <p className="text-sm text-muted-foreground truncate mt-0.5">Zweck: {stripHtml(circle.purpose)}</p>
                 )}
                 <div className="flex items-center gap-4 mt-1 text-xs text-muted-foreground">
                   <span className="flex items-center gap-1"><Users className="h-3 w-3" /> {roleCount} Rolle{roleCount !== 1 ? 'n' : ''}</span>
