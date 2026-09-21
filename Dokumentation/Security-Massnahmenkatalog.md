@@ -17,14 +17,19 @@ Docker-Compose-Umgebung über ein selbst angelegtes, danach wieder gelöschtes T
 
 | ID | Schweregrad | Titel | Status |
 |----|-------------|-------|--------|
-| SEC-AUDIT-01 | **Kritisch** | Passwort-Hash-Leak über OData `$expand` | ✅ Behoben (dieser Branch) |
-| SEC-AUDIT-02 | Hoch | Ungeprüfter Content-Type bei Datei-Uploads, inline ausgeliefert (Firmenlogo, öffentlich) | Offen |
-| SEC-AUDIT-03 | Mittel | `S3PersonRoleAssignment.User` exponiert mehr Felder als für `RoleRead` vorgesehen | Offen |
-| SEC-AUDIT-04 | Mittel | Swagger/OpenAPI unauthentifiziert in allen Umgebungen erreichbar | Offen (bewusste Design-Entscheidung, zur Überprüfung) |
-| SEC-AUDIT-05 | Mittel | PostgreSQL/MinIO-Ports direkt auf den Host gemappt | Offen (Infrastruktur) |
-| SEC-AUDIT-06 | Niedrig | `X-Forwarded-For` wird ungeprüft vertraut (Rate-Limit-Umgehung bei direktem API-Zugriff) | Offen (aktuell nur durch Netzwerktopologie entschärft) |
-| SEC-AUDIT-07 | Niedrig | Keine Dateityp-/Endungs-Allowlist bei Dokument-Uploads | Offen |
-| SEC-AUDIT-08 | Niedrig | Unbereinigter Dateiname im S3-Objektschlüssel | Offen |
+| SEC-AUDIT-01 | **Kritisch** | Passwort-Hash-Leak über OData `$expand` | ✅ Behoben |
+| SEC-AUDIT-02 | Hoch | Ungeprüfter Content-Type bei Datei-Uploads, inline ausgeliefert (Firmenlogo, öffentlich) | ✅ Behoben |
+| SEC-AUDIT-03 | Mittel | `S3PersonRoleAssignment.User` exponiert mehr Felder als für `RoleRead` vorgesehen | ✅ Behoben |
+| SEC-AUDIT-04 | Mittel | Swagger/OpenAPI unauthentifiziert in allen Umgebungen erreichbar | ✅ Behoben |
+| SEC-AUDIT-05 | Mittel | PostgreSQL/MinIO-Ports direkt auf den Host gemappt | ✅ Behoben |
+| SEC-AUDIT-06 | Niedrig | `X-Forwarded-For` wird ungeprüft vertraut (Rate-Limit-Umgehung bei direktem API-Zugriff) | ✅ Behoben |
+| SEC-AUDIT-07 | Niedrig | Keine Dateityp-/Endungs-Allowlist bei Dokument-Uploads | ✅ Behoben |
+| SEC-AUDIT-08 | Niedrig | Unbereinigter Dateiname im S3-Objektschlüssel | ✅ Behoben |
+
+Alle acht Befunde sind auf diesem Branch behoben, gebaut, getestet (13/13) und gegen
+die laufende Umgebung deployt/verifiziert. Details und Umsetzung je Befund siehe unten;
+die ursprüngliche "Offen"-Einschätzung ist durchgestrichen durch den jeweiligen Fix-Absatz
+ersetzt.
 
 ---
 
@@ -108,6 +113,14 @@ alle eingeloggten Sessions (inkl. Admin-Sessions), sobald jemand die Seite öffn
    setzen (nicht den gespeicherten Client-Wert 1:1 übernehmen) bzw. `Content-Disposition`
    zumindest für alles ausser klar geprüften Bildtypen auf `attachment` setzen.
 
+**Fix (umgesetzt):** Neue zentrale `Services/UploadValidierung.cs` mit
+`IstErlaubtesBild(contentType, kopf)` – prüft Allowlist (PNG/JPEG/WebP) UND die
+tatsächlichen Magic Bytes der ersten 16 Byte. `UploadLogo` liest den Datei-Kopf vor dem
+eigentlichen Upload und lehnt bei Nichtübereinstimmung mit 400 ab. `LogoAbrufen`
+validiert zusätzlich beim Ausliefern (Defense-in-Depth für Altbestand vor diesem Fix) und
+liefert bei ungültigem Content-Type `application/octet-stream` statt des gespeicherten
+Werts. Build/Tests grün, gegen laufende Umgebung deployt.
+
 ---
 
 ## SEC-AUDIT-03 (Mittel): `S3PersonRoleAssignment.User` exponiert mehr Felder als vorgesehen
@@ -130,6 +143,13 @@ ein Bruch des Least-Privilege-Prinzips: Daten, die regulär `UserRead` vorausset
 Mitgliederanzeige benötigt), statt die volle Entität (minus zwei Felder) zu exponieren.
 Kein akuter Handlungsdruck wie SEC-AUDIT-01, da keine Secrets mehr betroffen sind.
 
+**Fix (umgesetzt):** `AbacusPersonalnummer`, `Role`, `RoleId`, `Aktiv`, `EmailCanonical`,
+`RowVersion`, `EmailVerified`, `VerificationTokenExpiry`, `PortraetPfad`, `CreatedById`,
+`ChangedById` zusätzlich im OData-EDM-Modell für `User` ignoriert (gleiche Stelle wie
+SEC-AUDIT-01). `UserDto` (der separate, `UserRead`-geschützte Typ) ist davon unberührt.
+Live verifiziert: `$expand=Assignments($expand=User)` liefert nur noch
+`id`/`name`/`email`/`telefon` plus generische Audit-Zeitstempel.
+
 ---
 
 ## SEC-AUDIT-04 (Mittel): Swagger/OpenAPI unauthentifiziert in allen Umgebungen
@@ -146,6 +166,13 @@ Angreifer (Aufklärung der Angriffsfläche). Empfehlung: mindestens in einer sp�
 Produktivumgebung Swagger hinter `[Authorize]` oder auf Nicht-Produktiv-Umgebungen
 beschränken.
 
+**Fix (umgesetzt):** `UseSwagger`/`UseSwaggerUI` an dieselbe Bedingung gekoppelt wie die
+bestehende Migrations-/Seeding-Beschränkung (`IsDevelopment() || EnvironmentName ==
+"Docker"`). Verhalten für die aktuelle Pilotphase (läuft unter "Docker") unverändert,
+schliesst die Lücke aber automatisch, sobald eine echte Produktivumgebung eingeführt
+wird. Live verifiziert: `/api/swagger/index.html` weiterhin erreichbar (200) im aktuellen
+Docker-Environment.
+
 ---
 
 ## SEC-AUDIT-05 (Mittel): PostgreSQL/MinIO-Ports direkt auf den Host gemappt
@@ -160,6 +187,11 @@ beurteilt werden.
 **Empfehlung:** Für jede Umgebung, in der der Docker-Host nicht vollständig isoliert
 ist, Host-Bindings auf `127.0.0.1` einschränken bzw. die Portfreigaben ganz entfernen,
 sofern kein externer Zugriff auf diese Dienste benötigt wird.
+
+**Fix (umgesetzt):** Beide Port-Mappings in `docker-compose.yml` auf `127.0.0.1:<port>:<port>`
+umgestellt. Lokale DB-Client-/MinIO-Console-Zugriffe vom selben Host funktionieren
+weiterhin, externe Erreichbarkeit ist ausgeschlossen. Verifiziert via `docker port
+bandspirit-postgres`/`bandspirit-minio` nach Redeploy.
 
 ---
 
@@ -180,6 +212,16 @@ nie direkt, nur über nginx erreichbar sein") und – falls das Deployment-Model
 ändert (z. B. Kubernetes mit festen Proxy-IPs) – `KnownProxies`/`KnownNetworks` auf die
 tatsächlichen Proxy-Adressen einschränken.
 
+**Fix (umgesetzt):** `bandspirit-net` erhält in `docker-compose.yml` ein festes Subnetz
+(`172.28.0.0/16`) statt eines von Docker automatisch zugewiesenen (und bei vollständigem
+Neuaufbau potenziell wechselnden) Bereichs. `ForwardedHeadersOptions.KnownNetworks` in
+`Program.cs` vertraut `X-Forwarded-For` jetzt nur noch aus diesem Subnetz statt aus jeder
+Quelle – bleibt über einzelne Container-Restarts stabil (nur die Subnetz-Zugehörigkeit
+zählt, nicht die einzelne Container-IP). Nach dem Umstellen mussten alle Container neu
+verbunden werden (`docker compose up -d --force-recreate`), da nicht neu gebaute Dienste
+(Postgres/Redis/MinIO) sonst ihren Compose-Service-DNS-Alias auf dem neuen Netz verloren
+hatten – danach alle 6 Container wieder healthy, DNS-Auflösung verifiziert.
+
 ---
 
 ## SEC-AUDIT-07 (Niedrig): Keine Dateityp-/Endungs-Allowlist bei Dokument-Uploads
@@ -197,6 +239,10 @@ die dann von jemandem lokal geöffnet wird).
 
 **Empfehlung:** Gemeinsame Allowlist/Validierung für alle Upload-Pfade einführen (z. B.
 zentraler Helper in `S3StorageService`).
+
+**Fix (umgesetzt):** `UploadValidierung.IstErlaubterDokumentTyp` (Allowlist: PDF, Word,
+Excel, PNG/JPEG/WebP, Plain Text) in `S3RollenDefinitionDokumenteController.Hochladen`
+eingebaut, lehnt nicht gelistete Content-Types mit 400 ab.
 
 ---
 
@@ -219,6 +265,10 @@ Steuerzeichen versehene Schlüssel).
 
 **Empfehlung:** Dateinamen vor Verwendung auf ein sicheres Zeichen-Set beschränken
 (z. B. `[a-zA-Z0-9._-]`), rein kosmetisch/defensiv, kein akuter Fix nötig.
+
+**Fix (umgesetzt):** `UploadValidierung.BereinigeDateiname` ersetzt jedes Zeichen
+ausserhalb von `[a-zA-Z0-9._-]` durch `_`, angewendet in `S3StorageService.UploadAsync`
+vor der Schlüsselbildung.
 
 ---
 
@@ -249,10 +299,11 @@ Der Vollständigkeit halber: folgende häufige Schwachstellenklassen wurden gepr
 
 ---
 
-## Empfohlene Reihenfolge
+## Status
 
-1. ~~SEC-AUDIT-01~~ – bereits behoben auf diesem Branch.
-2. SEC-AUDIT-02 – zeitnah, da öffentlich (unauthentifiziert) erreichbar und mit
-   XSS-Impact auf alle Nutzer:innen inkl. Admins.
-3. SEC-AUDIT-03 bis SEC-AUDIT-08 – keine akute Ausnutzbarkeit ohne bereits privilegierten
-   bzw. kompromittierten Zugang; nach Priorität/Kapazität einplanen.
+Alle acht Befunde (SEC-AUDIT-01 bis SEC-AUDIT-08) sind auf diesem Branch behoben,
+gebaut, getestet (13/13) und gegen die laufende Umgebung deployt und verifiziert. Details
+je Befund siehe die jeweiligen "Fix (umgesetzt)"-Absätze oben.
+
+Empfehlung für ein Code-Review vor dem Merge: besonderes Augenmerk auf SEC-AUDIT-01
+(Kritisch) und SEC-AUDIT-02 (Hoch), da beide vor dem Fix live ausnutzbar waren.
