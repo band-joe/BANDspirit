@@ -1,0 +1,14 @@
+# Secrets / lokale Umgebungskonfiguration
+.env
+.env.*
+!.env.example
+
+# Node
+node_modules/
+
+# .NET Build-Ausgaben
+bin/
+obj/
+
+# Windows-Metadaten (z. B. bei aus dem Browser heruntergeladenen Dateien)
+*:Zone.Identifier

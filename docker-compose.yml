@@ -93,10 +93,15 @@ services:
       - S3__BucketName=${S3_BUCKET_NAME:-bandspirit}
       - S3__Region=us-east-1
       - S3__ForcePathStyle=true
-      # ── SMTP E-Mail-Versand (interner Relay) ──
+      # ── SMTP E-Mail-Versand (interner Relay fw.band.ch / mail.band.local) ──
+      # WICHTIG: .env verwendet die SMTP_*-Namen (siehe .env.example). Vorherige
+      # Versionen dieses Blocks lasen EXCHANGE_SMTP_*-Namen, was zu denselben
+      # Symptomen führte (Backend nutzte einen Fallback statt der echten .env-
+      # Werte, Fehler wurde nur geloggt). Bei künftigen Änderungen IMMER
+      # docker-compose.yml, .env und .env.example gemeinsam synchron halten.
       - Smtp__Host=${SMTP_HOST:-mail.band.local}
       - Smtp__Port=${SMTP_PORT:-25}
-      # Security: None (Port 25 intern) | StartTls (587) | SslOnConnect (465) | Auto
+      # Security: None (Port 25, interner Relay fw.band.ch) | StartTls (587, z. B. Office 365) | SslOnConnect (465) | Auto
       - Smtp__Security=${SMTP_SECURITY:-None}
       # Auth optional – leer lassen, wenn der Relay ohne Anmeldung annimmt
       - Smtp__User=${SMTP_USER:-}

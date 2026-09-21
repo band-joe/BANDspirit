@@ -49,7 +49,11 @@ public static class DataSeeder
                 Email = adminEmail,
                 Password = BCrypt.Net.BCrypt.HashPassword(adminPassword),
                 Role = BenutzerRollenNamen.Admin,
-                Aktiv = true
+                Aktiv = true,
+                // K81 führte Email-Verifizierung ein (ValidateCredentialsAsync lehnt
+                // EmailVerified=false ab). Ohne dies kann sich der dokumentierte
+                // Seed-Admin nie einloggen, da niemand seinen Verification-Link klickt.
+                EmailVerified = true
             });
             logger.LogInformation("Admin-Benutzer {Email} wurde angelegt.", adminEmail);
         }
@@ -62,6 +66,13 @@ public static class DataSeeder
             {
                 admin.Aktiv = true;
                 geaendert = true;
+            }
+
+            if (!admin.EmailVerified)
+            {
+                admin.EmailVerified = true;
+                geaendert = true;
+                logger.LogWarning("Admin-Konto war nicht als E-Mail-verifiziert markiert (K81) – korrigiert, sonst wäre kein Login möglich.");
             }
 
             if (admin.Role != BenutzerRollenNamen.Admin)
