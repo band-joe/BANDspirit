@@ -331,12 +331,12 @@ public class ProfilController : ControllerBase
             return NotFound(new { fehler = "Benutzer nicht gefunden." });
         }
 
-        // Altes Foto aufräumen (best effort).
-        if (!string.IsNullOrEmpty(benutzer.PortraetPfad))
-        {
-            try { await _s3.DeleteAsync(benutzer.PortraetPfad); }
-            catch { /* Bereinigung ist optional, Upload soll nicht scheitern. */ }
-        }
+        // APP-06-Fix: Reihenfolge war Löschen -> Dekodieren -> Upload -> Speichern.
+        // Schlug die Dekodierung/der Upload danach fehl, war das alte Foto bereits
+        // weg und die DB zeigte weiterhin auf einen gelöschten Schlüssel. Jetzt:
+        // erst validieren/hochladen/speichern, das alte Foto erst danach (best
+        // effort) entfernen.
+        var altesPortraetPfad = benutzer.PortraetPfad;
 
         // Bild auf ein quadratisches Thumbnail (300 x 300) verkleinern. Dadurch
         // bleiben die abgelegten Dateien klein und werden im Profil in genau der
@@ -390,6 +390,18 @@ public class ProfilController : ControllerBase
 
         benutzer.PortraetPfad = key;
         await _db.SaveChangesAsync();
+
+        // Erst jetzt, nachdem Upload und DB-Update erfolgreich waren, das alte
+        // Foto aufräumen (best effort - ein Fehler hier soll die Antwort nicht
+        // mehr verhindern, da der Benutzer bereits sein neues Foto hat).
+        if (!string.IsNullOrEmpty(altesPortraetPfad))
+        {
+            try { await _s3.DeleteAsync(altesPortraetPfad); }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Altes Porträtfoto ({Pfad}) konnte nach erfolgreichem Ersatz nicht gelöscht werden.", altesPortraetPfad);
+            }
+        }
 
         return Ok(new { portraetPfad = key });
     }
