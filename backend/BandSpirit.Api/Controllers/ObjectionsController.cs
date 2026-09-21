@@ -1,3 +1,4 @@
+using System.Security.Claims;
 using BandSpirit.Api.Infrastructure.Data;
 using BandSpirit.Api.Models;
 using Microsoft.AspNetCore.Authorization;
@@ -35,6 +36,11 @@ public class ObjectionsController : ODataController
         return eintrag is null ? NotFound() : Ok(eintrag);
     }
 
+    /// <remarks>
+    /// UI-28-Fix: UserId wird jetzt immer serverseitig aus dem Token gesetzt,
+    /// nie aus dem Request-Body übernommen (das Frontend sendete den Wert nie
+    /// mit, wodurch UserId zuvor stets Guid.Empty gewesen wäre).
+    /// </remarks>
     [HttpPost]
     [Authorize(Policy = Permissions.ObjectionCreate)]
     public async Task<IActionResult> Post([FromBody] S3Objection eintrag)
@@ -43,6 +49,13 @@ public class ObjectionsController : ODataController
         {
             return BadRequest(ModelState);
         }
+
+        if (!Guid.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var userId))
+        {
+            return Unauthorized(new { fehler = "Kein gültiger Benutzer im Token." });
+        }
+        eintrag.UserId = userId;
+
         _db.S3Objections.Add(eintrag);
         await _db.SaveChangesAsync();
         return Created(eintrag);

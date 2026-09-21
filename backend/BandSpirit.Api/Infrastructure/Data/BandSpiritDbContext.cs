@@ -271,13 +271,17 @@ public class BandSpiritDbContext : DbContext
             e.HasIndex(m => m.Status);
             e.HasOne(m => m.Circle).WithMany().HasForeignKey(m => m.CircleId).OnDelete(DeleteBehavior.Cascade);
             e.HasMany(m => m.AgendaItems).WithOne(a => a.Meeting!).HasForeignKey(a => a.MeetingId).OnDelete(DeleteBehavior.Cascade);
+            // UI-28-Fix: fehlte komplett, siehe Kommentar auf S3Meeting.Proposals.
+            e.HasMany(m => m.Proposals).WithOne().HasForeignKey(p => p.MeetingId).OnDelete(DeleteBehavior.SetNull);
         });
 
-        // ── S3Proposal / S3Objection ──────────────────────────────────────
+        // ── S3Proposal / S3Objection / S3Decision ──────────────────────────
         modelBuilder.Entity<S3Proposal>(e =>
         {
             e.HasIndex(p => p.CircleId);
             e.HasMany(p => p.Objections).WithOne(o => o.Proposal!).HasForeignKey(o => o.ProposalId).OnDelete(DeleteBehavior.Cascade);
+            // UI-28-Fix: fehlte komplett, siehe Kommentar auf S3Proposal.Decision.
+            e.HasOne(p => p.Decision).WithOne(d => d.Proposal!).HasForeignKey<S3Decision>(d => d.ProposalId).OnDelete(DeleteBehavior.Cascade);
         });
 
         // ── S3Driver / SpannungWorkItem ───────────────────────────────────

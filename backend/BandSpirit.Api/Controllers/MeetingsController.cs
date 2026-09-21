@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.OData.Deltas;
 using Microsoft.AspNetCore.OData.Query;
+using Microsoft.AspNetCore.OData.Results;
 using Microsoft.AspNetCore.OData.Routing.Controllers;
 using Microsoft.EntityFrameworkCore;
 
@@ -23,13 +24,21 @@ public class MeetingsController : ODataController
     [Authorize(Policy = Permissions.MeetingRead)]
     public IQueryable<S3Meeting> Get() => _db.S3Meetings.AsQueryable();
 
+    /// <summary>
+    /// GET /odata/Meetings({id}) – Einzelnes Meeting abrufen.
+    /// </summary>
+    /// <remarks>
+    /// UI-28/APP-21-Fix: SingleResult statt FirstOrDefaultAsync(), damit
+    /// $expand=Proposals($expand=Objections,Decision),Circle vor der
+    /// Materialisierung angewendet wird - FirstOrDefaultAsync() ignoriert
+    /// $expand, wodurch die Meeting-Detailseite nie Anträge/Kreis geladen hätte.
+    /// </remarks>
     [HttpGet]
     [EnableQuery]
     [Authorize(Policy = Permissions.MeetingRead)]
-    public async Task<IActionResult> Get([FromRoute] Guid key)
+    public SingleResult<S3Meeting> Get([FromRoute] Guid key)
     {
-        var eintrag = await _db.S3Meetings.FirstOrDefaultAsync(m => m.Id == key);
-        return eintrag is null ? NotFound() : Ok(eintrag);
+        return SingleResult.Create(_db.S3Meetings.Where(m => m.Id == key));
     }
 
     [HttpPost]

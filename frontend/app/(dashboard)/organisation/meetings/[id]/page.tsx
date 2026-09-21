@@ -15,6 +15,7 @@ import {
 } from '@/components/ui/dialog';
 import { hasPermission } from '@/lib/rbac';
 import { apiClient } from '@/lib/api-client';
+import { ODataResponse } from '@/lib/odata';
 import { ApiError } from '@/lib/errors';
 import { formatDate } from '@/lib/utils';
 import {
@@ -38,6 +39,13 @@ export default function MeetingDetailPage() {
   const router = useRouter();
   const [meeting, setMeeting] = useState<Record<string, unknown> | null>(null);
   const [loading, setLoading] = useState(true);
+
+  // UI-28-Fix: Backend liefert keine verschachtelten creator/proposer/objector-
+  // Objekte (die gab es nie) - Namen werden clientseitig über eine separat
+  // geladene Users-Liste aufgelöst, mit Fallback für Betrachter ohne user:read.
+  const [users, setUsers] = useState<{ id: string; name: string }[]>([]);
+  const benutzerName = (id: string | null | undefined) =>
+    users.find((u) => u.id === id)?.name ?? 'Unbekannt';
 
   // Proposal dialog
   const [proposalDialogOpen, setProposalDialogOpen] = useState(false);
@@ -68,6 +76,14 @@ export default function MeetingDetailPage() {
 
   useEffect(() => { loadMeeting(); }, [loadMeeting]);
 
+  useEffect(() => {
+    if (!session) return;
+    apiClient
+      .get<ODataResponse<{ id: string; name: string }>>('/odata/Users?$select=id,name', session)
+      .then((data) => setUsers(data.value ?? []))
+      .catch(() => setUsers([]));
+  }, [session]);
+
   const updateStatus = async (status: string) => {
     try {
       const data: Record<string, unknown> = { status };
@@ -82,8 +98,16 @@ export default function MeetingDetailPage() {
 
   const handleCreateProposal = async () => {
     try {
-      // Vorschlag über OData anlegen
-      await apiClient.post('/odata/Proposals', { ...proposalForm, meetingId: params.id }, session);
+      // UI-28-Fix: Backend-Feldnamen (titel/beschreibung) statt englischer
+      // Namen; circleId ist auf S3Proposal ein Pflichtfeld (nicht nullable)
+      // und muss vom Meeting übernommen werden - fehlte zuvor komplett.
+      const circleId = (meeting?.circle as Record<string, unknown> | undefined)?.id as string | undefined;
+      await apiClient.post('/odata/Proposals', {
+        titel: proposalForm.title,
+        beschreibung: proposalForm.description || null,
+        meetingId: params.id,
+        circleId,
+      }, session);
       toast.success('Vorschlag erstellt');
       setProposalDialogOpen(false);
       setProposalForm({ title: '', description: '' });
@@ -156,12 +180,12 @@ export default function MeetingDetailPage() {
           <div className="flex items-center gap-3 flex-wrap">
             <h1 className="text-2xl font-bold">{String(m.title)}</h1>
             <Badge className={STATUS_COLORS[m.status as string] || ''}>{String(m.status)}</Badge>
-            <Badge variant="outline">{MEETING_TYPE_LABELS[m.meetingType as string] || m.meetingType as string}</Badge>
+            <Badge variant="outline">{MEETING_TYPE_LABELS[m.typ as string] || m.typ as string}</Badge>
             {circle && <Badge variant="secondary">{circle.name as string}</Badge>}
           </div>
           <div className="flex items-center gap-3 mt-1 text-sm text-muted-foreground">
             <span><Clock className="h-3 w-3 inline mr-1" />{formatDate(m.scheduledAt as string)}</span>
-            <span>Erstellt von {((m.creator as Record<string, unknown>)?.name as string) || ''}</span>
+            <span>Erstellt von {benutzerName(m.createdById as string | null)}</span>
           </div>
         </div>
         <div className="flex gap-2">
@@ -215,14 +239,14 @@ export default function MeetingDetailPage() {
                   <CardContent className="py-4 space-y-3">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
-                        <h3 className="font-semibold">{String(p.title)}</h3>
+                        <h3 className="font-semibold">{String(p.titel)}</h3>
                         <Badge className={PROPOSAL_STATUS_COLORS[p.status as string] || ''}>{String(p.status)}</Badge>
                       </div>
                       <span className="text-xs text-muted-foreground">
-                        von {((p.proposer as Record<string, unknown>)?.name as string) || ''}
+                        von {benutzerName(p.createdById as string | null)}
                       </span>
                     </div>
-                    {p.description ? <p className="text-sm text-muted-foreground">{String(p.description)}</p> : null}
+                    {p.beschreibung ? <p className="text-sm text-muted-foreground">{String(p.beschreibung)}</p> : null}
 
                     {/* Consent-Workflow Buttons */}
                     <div className="flex gap-2 flex-wrap">
@@ -253,7 +277,7 @@ export default function MeetingDetailPage() {
                               <div className="flex items-center justify-between">
                                 <div className="flex items-center gap-2">
                                   <Badge className={OBJECTION_STATUS_COLORS[o.status as string] || ''} >{String(o.status)}</Badge>
-                                  <span className="text-muted-foreground">von {((o.objector as Record<string, unknown>)?.name as string) || ''}</span>
+                                  <span className="text-muted-foreground">von {benutzerName(o.userId as string | null)}</span>
                                 </div>
                                 {o.status === 'OFFEN' && hasPermission(role, 'org:objection:update') && (
                                   <div className="flex gap-1">
@@ -280,7 +304,7 @@ export default function MeetingDetailPage() {
                       <div className="pt-2 border-t">
                         <div className="flex items-center gap-2">
                           <CheckCircle2 className="h-4 w-4 text-green-500" />
-                          <span className="font-medium text-green-700">Consent-Entscheidung: {decision.title as string}</span>
+                          <span className="font-medium text-green-700">Consent-Entscheidung: {decision.beschreibung as string}</span>
                         </div>
                       </div>
                     )}

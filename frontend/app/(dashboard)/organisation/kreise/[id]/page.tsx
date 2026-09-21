@@ -155,7 +155,8 @@ export default function KreisDetailPage() {
 
   // Meeting dialog
   const [meetingDialogOpen, setMeetingDialogOpen] = useState(false);
-  const [meetingForm, setMeetingForm] = useState({ title: '', meetingType: 'GOVERNANCE', scheduledAt: '', notes: '' });
+  // UI-28-Fix: Backend-Feldname ist "typ" (S3Meeting.Typ), nicht "meetingType".
+  const [meetingForm, setMeetingForm] = useState({ title: '', typ: 'GOVERNANCE', scheduledAt: '', notes: '' });
 
   // Driver dialog
   const [driverDialogOpen, setDriverDialogOpen] = useState(false);
@@ -461,7 +462,7 @@ export default function KreisDetailPage() {
       await apiClient.post('/odata/Meetings', { ...meetingForm, circleId: params.id }, session);
       toast.success('Meeting erstellt');
       setMeetingDialogOpen(false);
-      setMeetingForm({ title: '', meetingType: 'GOVERNANCE', scheduledAt: '', notes: '' });
+      setMeetingForm({ title: '', typ: 'GOVERNANCE', scheduledAt: '', notes: '' });
       loadCircle();
     } catch (error: unknown) {
       console.error('Fehler:', error);
@@ -799,7 +800,7 @@ export default function KreisDetailPage() {
                     <div><Label>Titel *</Label><Input value={meetingForm.title} onChange={e => setMeetingForm(f => ({ ...f, title: e.target.value }))} /></div>
                     <div>
                       <Label>Typ</Label>
-                      <Select value={meetingForm.meetingType} onValueChange={v => setMeetingForm(f => ({ ...f, meetingType: v }))}>
+                      <Select value={meetingForm.typ} onValueChange={v => setMeetingForm(f => ({ ...f, typ: v }))}>
                         <SelectTrigger><SelectValue /></SelectTrigger>
                         <SelectContent>
                           <SelectItem value="GOVERNANCE">Governance</SelectItem>
@@ -828,8 +829,8 @@ export default function KreisDetailPage() {
                         <div>
                           <div className="flex items-center gap-2">
                             <h4 className="font-semibold">{String(m.title)}</h4>
-                            <Badge className={MEETING_TYPE_LABELS[m.meetingType as string] ? 'bg-primary/10 text-primary' : ''}>
-                              {MEETING_TYPE_LABELS[m.meetingType as string] || String(m.meetingType)}
+                            <Badge className={MEETING_TYPE_LABELS[m.typ as string] ? 'bg-primary/10 text-primary' : ''}>
+                              {MEETING_TYPE_LABELS[m.typ as string] || String(m.typ)}
                             </Badge>
                             <Badge className={MEETING_STATUS_COLORS[m.status as string] || ''}>{String(m.status)}</Badge>
                           </div>
