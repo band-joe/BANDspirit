@@ -121,32 +121,17 @@ public class RolesController : ODataController
         => ex.InnerException is PostgresException { SqlState: "23505" };
 
     /// <summary>
-    /// DELETE /odata/Roles({id}) – Rolle aus dem Kreis löschen.
-    /// Eine Rolle darf nur gelöscht werden, wenn ihr kein Benutzer mehr
-    /// zugewiesen ist. Bestehen noch Zuweisungen, wird die Löschung mit
-    /// HTTP 409 (Conflict) abgelehnt.
+    /// DELETE /odata/Roles({id}) – bewusst deaktiviert.
+    /// DB-15: Rollen dürfen nicht hart gelöscht werden, sonst würden bestehende
+    /// AppLog-Einträge (ZUWEISUNG/ENTZUG, per RoleId referenziert) aus der
+    /// Kreis-Historie verschwinden. Analog zu BenutzerRollenController.Delete:
+    /// PATCH aktiv=false verwenden.
     /// </summary>
     [HttpDelete]
     [Authorize(Policy = Permissions.RoleUpdate)]
-    public async Task<IActionResult> Delete([FromRoute] Guid key)
-    {
-        var eintrag = await _db.S3Roles.FirstOrDefaultAsync(r => r.Id == key);
-        if (eintrag is null)
-        {
-            return NotFound();
-        }
-
-        // Löschen nur erlaubt, wenn keine Benutzer-Zuweisung mehr besteht.
-        var hatZuweisungen = await _db.S3PersonRoleAssignments.AnyAsync(p => p.RoleId == key);
-        if (hatZuweisungen)
-        {
-            return Conflict(new { fehler = "Die Rolle kann nicht gelöscht werden, solange ihr noch Benutzer zugewiesen sind. Bitte zuerst alle Zuweisungen entfernen." });
-        }
-
-        _db.S3Roles.Remove(eintrag);
-        await _db.SaveChangesAsync();
-        return NoContent();
-    }
+    public IActionResult Delete([FromRoute] Guid key)
+        => StatusCode(StatusCodes.Status405MethodNotAllowed,
+            "Rollen können nicht gelöscht, sondern nur inaktiv gesetzt werden (PATCH aktiv=false).");
 
     /// <summary>POST /odata/Roles({id})/Assign – Benutzer einer Rolle zuweisen.</summary>
     [HttpPost]
@@ -165,6 +150,13 @@ public class RolesController : ODataController
         if (rolle is null)
         {
             return NotFound();
+        }
+
+        // DB-15-Fix: Eine deaktivierte Rolle (siehe Delete-Action) darf keine
+        // neuen Zuweisungen mehr erhalten.
+        if (!rolle.Aktiv)
+        {
+            return BadRequest(new { fehler = "Diese Rolle ist deaktiviert und kann keinem Benutzer mehr zugewiesen werden." });
         }
 
         var bereitsZugewiesen = await _db.S3PersonRoleAssignments

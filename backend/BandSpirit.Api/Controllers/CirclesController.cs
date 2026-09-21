@@ -92,20 +92,18 @@ public class CirclesController : ODataController
         return Updated(eintrag);
     }
 
-    /// <summary>DELETE /odata/Circles({id}) – Kreis löschen.</summary>
+    /// <summary>
+    /// DELETE /odata/Circles({id}) – bewusst deaktiviert.
+    /// DB-15: Kreise dürfen nicht hart gelöscht werden - das würde stillschweigend
+    /// über alle Rollen, Zuweisungen, Meetings, Anträge und Spannungen des Kreises
+    /// kaskadieren und bestehende AppLog-Einträge ins Leere laufen lassen. Analog zu
+    /// BenutzerRollenController.Delete: PATCH isActive=false verwenden.
+    /// </summary>
     [HttpDelete]
     [Authorize(Policy = Permissions.CircleDelete)]
-    public async Task<IActionResult> Delete([FromRoute] Guid key)
-    {
-        var eintrag = await _db.S3Circles.FirstOrDefaultAsync(c => c.Id == key);
-        if (eintrag is null)
-        {
-            return NotFound();
-        }
-        _db.S3Circles.Remove(eintrag);
-        await _db.SaveChangesAsync();
-        return NoContent();
-    }
+    public IActionResult Delete([FromRoute] Guid key)
+        => StatusCode(StatusCodes.Status405MethodNotAllowed,
+            "Kreise können nicht gelöscht, sondern nur inaktiv gesetzt werden (PATCH isActive=false).");
 
     /// <summary>
     /// Ermittelt die RootId (obersten Kreis der Hierarchie) für einen Kreis.

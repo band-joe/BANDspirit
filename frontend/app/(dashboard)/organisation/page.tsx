@@ -136,7 +136,7 @@ export default function OrganisationPage() {
     setMembersRoles([]);
     try {
       const res = await apiClient.get<ODataResponse<Record<string, any>>>(
-        `/odata/Roles?$filter=CircleId eq ${circle.id}&$expand=RollenDefinition,Assignments($expand=User)`,
+        `/odata/Roles?$filter=CircleId eq ${circle.id} and Aktiv eq true&$expand=RollenDefinition,Assignments($expand=User)`,
         session,
       );
       setMembersRoles(res.value ?? []);

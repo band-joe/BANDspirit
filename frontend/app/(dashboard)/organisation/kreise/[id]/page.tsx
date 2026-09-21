@@ -196,7 +196,7 @@ export default function KreisDetailPage() {
       // Zugehörige Datensätze separat und fehlertolerant laden
       const [rolesRes, driversRes, childrenRes] = await Promise.all([
         apiClient.get<ODataResponse<Record<string, any>>>(
-          `/odata/Roles?$filter=CircleId eq ${params.id}&$expand=RollenDefinition,Assignments($expand=User)`,
+          `/odata/Roles?$filter=CircleId eq ${params.id} and Aktiv eq true&$expand=RollenDefinition,Assignments($expand=User)`,
           session,
         ).catch(() => ({ value: [] as Record<string, any>[] })),
         apiClient.get<ODataResponse<Record<string, any>>>(
@@ -438,16 +438,16 @@ export default function KreisDetailPage() {
     }
   };
 
-  // Rolle aus dem Kreis löschen – nur möglich, wenn keine Zuweisungen bestehen.
-  // Die eigentliche Prüfung erfolgt zusätzlich serverseitig (HTTP 409 bei Zuweisungen).
+  // DB-15: Rollen werden nur deaktiviert, nie hart gelöscht (sonst würden
+  // AppLog-Einträge zu dieser Rolle aus der Kreis-Historie verschwinden).
   const handleDeleteRole = async (roleId: string) => {
     try {
-      await apiClient.delete(`/odata/Roles(${roleId})`, session);
-      toast.success('Rolle gelöscht');
+      await apiClient.patch(`/odata/Roles(${roleId})`, { aktiv: false }, session);
+      toast.success('Rolle deaktiviert');
       loadCircle();
     } catch (error: unknown) {
       console.error('Fehler:', error);
-      toast.error(error instanceof ApiError ? (error.message || 'Fehler beim Löschen der Rolle') : 'Fehler beim Löschen der Rolle');
+      toast.error(error instanceof ApiError ? (error.message || 'Fehler beim Deaktivieren der Rolle') : 'Fehler beim Deaktivieren der Rolle');
     }
   };
 
@@ -757,24 +757,25 @@ export default function KreisDetailPage() {
                               ))}
                             </div>
                           </div>
-                          {/* Rolle löschen – nur wenn keine Zuweisungen bestehen */}
-                          {assignments.length === 0 && hasPermission(role, 'org:role:update') && (
+                          {/* Rolle deaktivieren (DB-15: kein Hard-Delete) */}
+                          {hasPermission(role, 'org:role:update') && (
                             <AlertDialog>
                               <AlertDialogTrigger asChild>
-                                <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10" title="Rolle löschen">
+                                <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10" title="Rolle deaktivieren">
                                   <Trash2 className="h-4 w-4" />
                                 </Button>
                               </AlertDialogTrigger>
                               <AlertDialogContent>
                                 <AlertDialogHeader>
-                                  <AlertDialogTitle>Rolle löschen?</AlertDialogTitle>
+                                  <AlertDialogTitle>Rolle deaktivieren?</AlertDialogTitle>
                                   <AlertDialogDescription>
-                                    Die Rolle &quot;{String(rDef?.name ?? 'Rolle')}&quot; wird aus diesem Kreis entfernt. Dies ist nur möglich, weil ihr aktuell kein Benutzer zugewiesen ist.
+                                    Die Rolle &quot;{String(rDef?.name ?? 'Rolle')}&quot; wird in diesem Kreis deaktiviert und verschwindet aus der aktiven Übersicht.
+                                    {assignments.length > 0 && ' Bestehende Zuweisungen bleiben erhalten, es können aber keine neuen Benutzer mehr zugewiesen werden.'}
                                   </AlertDialogDescription>
                                 </AlertDialogHeader>
                                 <AlertDialogFooter>
                                   <AlertDialogCancel>Abbrechen</AlertDialogCancel>
-                                  <AlertDialogAction onClick={() => handleDeleteRole(r.id as string)}>Löschen</AlertDialogAction>
+                                  <AlertDialogAction onClick={() => handleDeleteRole(r.id as string)}>Deaktivieren</AlertDialogAction>
                                 </AlertDialogFooter>
                               </AlertDialogContent>
                             </AlertDialog>

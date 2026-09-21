@@ -26,6 +26,14 @@ public class S3Role : AuditableEntity
     /// <summary>Gibt an, ob die Rolle Facilitator ist.</summary>
     public bool IsFacilitator { get; set; }
 
+    /// <summary>
+    /// Gibt an, ob die Rolle aktiv ist. DB-15: Rollen werden nie hart gelöscht,
+    /// sondern nur deaktiviert - sonst würden Verweise im AppLog (z. B. frühere
+    /// ZUWEISUNG/ENTZUG-Einträge, die per RoleId auf diese Rolle zeigen) ins Leere
+    /// laufen und aus der Kreis-Historie verschwinden. Standard: true.
+    /// </summary>
+    public bool Aktiv { get; set; } = true;
+
     /// <summary>Zuweisungen von Personen zu dieser Rolle (Navigation).</summary>
     public ICollection<S3PersonRoleAssignment> Assignments { get; set; } = new List<S3PersonRoleAssignment>();
 }
