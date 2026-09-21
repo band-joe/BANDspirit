@@ -316,9 +316,12 @@ export default function OrganigrammPage() {
     return (
       <Card className="hover:shadow-md transition-shadow">
         <CardContent className="py-4">
-          <div className="flex items-center justify-between">
+          {/* UI-03-Fix: Auf schmalen Viewports rutscht die Aktion unter die
+              Kreis-Angaben statt das Layout horizontal zu sprengen (die feste
+              Button-Breite kollidierte zuvor mit min-w-0 der Namensspalte). */}
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-center gap-4 flex-1 min-w-0">
-              <div className="p-2 rounded-lg bg-primary/10">
+              <div className="p-2 rounded-lg bg-primary/10 flex-shrink-0">
                 <CircleDot className="h-5 w-5 text-primary" />
               </div>
               <div className="min-w-0 flex-1">
@@ -339,20 +342,20 @@ export default function OrganigrammPage() {
                 </div>
               </div>
             </div>
-            <div className="flex items-center gap-2 flex-shrink-0">
-              {roleCount > 0 && (
+            {roleCount > 0 && (
+              <div className="flex items-center gap-2 flex-shrink-0">
                 <Button
                   variant="outline"
                   size="sm"
-                  className="bg-blue-100 text-blue-800 border-blue-200 hover:bg-blue-200 hover:text-blue-900 dark:bg-blue-900/30 dark:text-blue-200 dark:border-blue-800 dark:hover:bg-blue-900/50"
+                  className="w-full sm:w-auto bg-blue-100 text-blue-800 border-blue-200 hover:bg-blue-200 hover:text-blue-900 dark:bg-blue-900/30 dark:text-blue-200 dark:border-blue-800 dark:hover:bg-blue-900/50"
                   title="Alle Mitglieder inkl. Rollen dieses Kreises anzeigen (nur Ansicht)"
                   onClick={() => setMembersDialogCircle(circle)}
                 >
                   <UsersRound className="h-4 w-4 mr-2" />
                   Mitglieder &amp; Rollen
                 </Button>
-              )}
-            </div>
+              </div>
+            )}
           </div>
         </CardContent>
       </Card>
@@ -364,9 +367,14 @@ export default function OrganigrammPage() {
     const kids = childrenByParent.get(circle.id) ?? [];
     const hasKids = kids.length > 0;
     const isCollapsed = collapsedIds.has(circle.id);
+    // UI-03-Fix: Einzug pro Ebene begrenzen (max. 5 Ebenen sichtbar versetzt,
+    // tiefere Ebenen bleiben auf demselben Einzug) statt unbegrenzt mit der
+    // Tiefe zu wachsen - bei sechs und mehr Ebenen sprengte allein der Einzug
+    // auf Telefonbreite bereits einen Grossteil der verfügbaren Breite.
+    const indentSteps = Math.min(depth, 5);
     return (
-      <div key={circle.id} className="space-y-3">
-        <div style={{ paddingLeft: `${depth * 1.5}rem` }} className="flex items-start gap-1">
+      <div key={circle.id} className="space-y-3 min-w-0">
+        <div style={{ paddingLeft: `${indentSteps}rem` }} className="flex items-start gap-1 min-w-0">
           {/* Toggle-Button: nur anzeigen, wenn Kinder vorhanden */}
           {hasKids ? (
             <button
@@ -391,13 +399,13 @@ export default function OrganigrammPage() {
             /* Platzhalter, damit Blatt-Knoten bündig mit Toggle-Knoten fluchten */
             <span className="mt-[1.1rem] flex-shrink-0 w-6 inline-block" />
           )}
-          <div className="flex-1">
+          <div className="flex-1 min-w-0">
             {circleCard(circle)}
           </div>
         </div>
         {/* Kinder nur rendern, wenn nicht zugeklappt */}
         {hasKids && !isCollapsed && (
-          <div className="space-y-3">
+          <div className="space-y-3 min-w-0">
             {kids.map(k => renderCircleNode(k, depth + 1))}
           </div>
         )}
