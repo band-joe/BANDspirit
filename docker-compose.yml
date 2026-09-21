@@ -137,7 +137,10 @@ services:
       # Collation de_CH.UTF-8 für die Erstinitialisierung
       POSTGRES_INITDB_ARGS: '--encoding=UTF-8 --lc-collate=de_CH.UTF-8 --lc-ctype=de_CH.UTF-8'
     ports:
-      - '5432:5432'
+      # SEC-AUDIT-05: Nur auf localhost binden statt 0.0.0.0 - der API-Container
+      # erreicht Postgres ohnehin über das interne Docker-Netz, ein Host-Port wird nur
+      # für lokale DB-Client-Zugriffe während der Entwicklung benötigt.
+      - '127.0.0.1:5432:5432'
     volumes:
       - postgres-data:/var/lib/postgresql/data
     networks:
@@ -183,8 +186,11 @@ services:
     container_name: bandspirit-minio
     restart: unless-stopped
     ports:
-      - '9000:9000'   # S3 API
-      - '9011:9001'   # MinIO Console (Web UI) — Port 9001 → 9011 (Konflikt vermeiden)
+      # SEC-AUDIT-05: Nur auf localhost binden statt 0.0.0.0 - api/frontend erreichen
+      # MinIO über das interne Docker-Netz, Host-Ports werden nur für lokale
+      # Entwicklung/Inspektion (Console) benötigt.
+      - '127.0.0.1:9000:9000'   # S3 API
+      - '127.0.0.1:9011:9001'   # MinIO Console (Web UI) — Port 9001 → 9011 (Konflikt vermeiden)
     volumes:
       - minio-data:/data
     environment:
@@ -216,3 +222,10 @@ networks:
   bandspirit-net:
     driver: bridge
     name: bandspirit-network
+    # SEC-AUDIT-06: Festes Subnetz statt von Docker automatisch zugewiesenem (und bei
+    # vollständigem Neuaufbau potenziell wechselndem) Bereich - Program.cs schränkt
+    # ForwardedHeadersOptions.KnownNetworks darauf ein, damit X-Forwarded-For nur aus
+    # diesem Netz (also faktisch nur vom nginx-Container) vertraut wird.
+    ipam:
+      config:
+        - subnet: 172.28.0.0/16

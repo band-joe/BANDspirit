@@ -115,6 +115,25 @@ public class FirmaLogoController : ControllerBase
             return BadRequest(new { fehler = "Keine Datei übermittelt." });
         }
 
+        // SEC-AUDIT-02: Das Logo wird später ÖFFENTLICH (anonym) und OHNE
+        // "Content-Disposition: attachment" ausgeliefert (LogoAbrufen unten) - der vom
+        // Client gesendete Content-Type ist frei fälschbar und wurde bisher ungeprüft
+        // übernommen. Ohne diese Prüfung liesse sich z. B. eine HTML/SVG-Datei mit
+        // Skript-Inhalt als "Logo" einschleusen und würde für jeden Besucher der
+        // Login-Seite inline im Browser ausgeführt (Stored-XSS). Allowlist + Magic-Bytes
+        // statt reinem Vertrauen in den Client-Header.
+        byte[] kopf;
+        using (var pruefStream = datei.OpenReadStream())
+        {
+            var puffer = new byte[16];
+            var gelesen = await pruefStream.ReadAsync(puffer.AsMemory(0, puffer.Length));
+            kopf = puffer[..gelesen];
+        }
+        if (!UploadValidierung.IstErlaubtesBild(datei.ContentType, kopf))
+        {
+            return BadRequest(new { fehler = "Nur PNG-, JPEG- oder WebP-Bilder sind als Firmenlogo erlaubt." });
+        }
+
         var firma = await _db.Firmas.FirstOrDefaultAsync(f => f.Id == "singleton");
         var neuAngelegt = firma is null;
         if (firma is null)
@@ -134,10 +153,7 @@ public class FirmaLogoController : ControllerBase
         try
         {
             using var stream = datei.OpenReadStream();
-            var contentType = string.IsNullOrWhiteSpace(datei.ContentType)
-                ? "application/octet-stream"
-                : datei.ContentType;
-            key = await _s3.UploadAsync(stream, datei.FileName, contentType);
+            key = await _s3.UploadAsync(stream, datei.FileName, datei.ContentType!);
         }
         catch (Amazon.S3.AmazonS3Exception ex)
         {
@@ -201,7 +217,14 @@ public class FirmaLogoController : ControllerBase
         try
         {
             var (inhalt, contentType) = await _s3.DownloadAsync(firma.LogoPath);
-            return File(inhalt, contentType);
+            // SEC-AUDIT-02: Defense-in-Depth für vor diesem Fix hochgeladene Logos -
+            // nur ein gültiger Bild-Content-Type wird inline ausgeliefert, alles andere
+            // fällt auf einen Download-erzwingenden Typ zurück statt potenziell
+            // gefährlichen Inhalt im Browser rendern zu lassen.
+            var sicherheitsContentType = UploadValidierung.IstErlaubterBildContentType(contentType)
+                ? contentType
+                : "application/octet-stream";
+            return File(inhalt, sicherheitsContentType);
         }
         catch (Amazon.S3.AmazonS3Exception ex)
         {

@@ -59,6 +59,15 @@ public class S3RollenDefinitionDokumenteController : ControllerBase
             return BadRequest(new { fehler = "Es wurde keine Datei übermittelt." });
         }
 
+        // SEC-AUDIT-07: Content-Type-Allowlist statt blindem Vertrauen in den vom
+        // Client gesendeten Wert. Downloads erzwingen ohnehin einen Dateinamen (kein
+        // Inline-Rendering-Risiko wie beim Firmenlogo), daher genügt hier die
+        // Allowlist-Prüfung ohne zusätzliche Magic-Byte-Analyse.
+        if (!UploadValidierung.IstErlaubterDokumentTyp(datei.ContentType))
+        {
+            return BadRequest(new { fehler = "Dieser Dateityp ist nicht erlaubt." });
+        }
+
         var definitionVorhanden = await _db.Set<S3RollenDefinition>().AnyAsync(r => r.Id == definitionId);
         if (!definitionVorhanden)
         {
@@ -69,7 +78,7 @@ public class S3RollenDefinitionDokumenteController : ControllerBase
         try
         {
             using var stream = datei.OpenReadStream();
-            key = await _s3.UploadAsync(stream, datei.FileName, datei.ContentType ?? "application/octet-stream");
+            key = await _s3.UploadAsync(stream, datei.FileName, datei.ContentType!);
         }
         catch (Amazon.S3.AmazonS3Exception ex)
         {
