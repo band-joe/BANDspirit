@@ -20,3 +20,5 @@ logs/
 # (Namen, E-Mails) - dürfen nie versioniert werden.
 backups/
 scripts/*.sql
+migration/*.sql
+migration/*.sql.gz
