@@ -408,15 +408,10 @@ export default function KreisDetailPage() {
 
   const handleAssign = async () => {
     if (!assignRoleId || !assignUserId) { toast.error('Bitte Rolle und Benutzer auswählen'); return; }
-    // Nur der Rolle "Mitglied" duerfen mehrere Benutzer zugewiesen werden.
-    const selectedRole = ((circle?.roles as Record<string, any>[]) || []).find(r => r.id === assignRoleId);
-    const roleName = (selectedRole?.rollenDefinition as { name?: string } | null)?.name;
-    const istMitglied = roleName === 'Mitglied';
-    const bestehendeZuweisungen = (selectedRole?.assignments as unknown[]) || [];
-    if (!istMitglied && bestehendeZuweisungen.length > 0) {
-      toast.error('Dieser Rolle ist bereits ein Benutzer zugeordnet. Nur der Rolle „Mitglied" können mehrere Benutzer zugewiesen werden.');
-      return;
-    }
+    // Business-Entscheid (2026-09-21): Jede Rolle erlaubt 0..n Benutzer, daher
+    // kein clientseitiger Kardinalitäts-Vorab-Check mehr (der hier zuvor
+    // ohnehin veraltet war - er verglich den Rollennamen auf "Mitglied" statt
+    // die inzwischen entfernte ErlaubtMehrfachbesetzung-Regel zu spiegeln).
     try {
       // Zuweisung über OData-Aktion
       await apiClient.post(`/odata/Roles(${assignRoleId})/Assign`, { userId: assignUserId }, session);

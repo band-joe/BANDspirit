@@ -24,16 +24,6 @@ public class S3RollenDefinition : AuditableEntity
     public bool IsLeadLink { get; set; }
 
     /// <summary>
-    /// APP-17-Fix: Gibt explizit an, ob dieser Rollendefinition mehrere Personen
-    /// gleichzeitig zugewiesen sein dürfen (z. B. "Mitglied"). Vorher wurde dies
-    /// implizit über einen Namensvergleich auf "Mitglied" in RolesController.Assign
-    /// abgeleitet - eine Umbenennung dieser Definition hätte die Kardinalitäts-
-    /// regel unbeabsichtigt geändert. Mit diesem Feld ist die Regel unabhängig
-    /// vom (änderbaren) Anzeigenamen.
-    /// </summary>
-    public bool ErlaubtMehrfachbesetzung { get; set; }
-
-    /// <summary>
     /// Gibt an, ob die Rollendefinition aktiv ist. Rollendefinitionen werden
     /// niemals gelöscht, sondern zur Wahrung der Datenintegrität nur inaktiv
     /// gesetzt (Soft-Delete).

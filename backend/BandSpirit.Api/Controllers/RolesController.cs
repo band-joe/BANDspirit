@@ -175,20 +175,9 @@ public class RolesController : ODataController
             return Ok(new { nachricht = "Benutzer wurde der Rolle zugewiesen." });
         }
 
-        // APP-17-Fix: Kardinalität kommt jetzt aus dem expliziten Feld
-        // ErlaubtMehrfachbesetzung statt aus einem Namensvergleich auf
-        // "Mitglied" - eine Umbenennung der Rollendefinition ändert die Regel
-        // dadurch nicht mehr unbeabsichtigt.
-        var erlaubtMehrfachbesetzung = rolle.RollenDefinition?.ErlaubtMehrfachbesetzung ?? false;
-        if (!erlaubtMehrfachbesetzung)
-        {
-            var hatBereitsBenutzer = await _db.S3PersonRoleAssignments.AnyAsync(p => p.RoleId == key);
-            if (hatBereitsBenutzer)
-            {
-                return Conflict(new { fehler = "Dieser Rolle ist bereits ein Benutzer zugeordnet. Diese Rollendefinition erlaubt keine Mehrfachbesetzung." });
-            }
-        }
-
+        // Business-Entscheid (2026-09-21): Jede S3-Rolle erlaubt 0..n Benutzer
+        // pro Kreis - die frühere kardinalitätsabhängige Sperre (APP-17,
+        // ErlaubtMehrfachbesetzung) entfällt ersatzlos.
         _db.S3PersonRoleAssignments.Add(new S3PersonRoleAssignment { RoleId = key, UserId = userId });
         await _db.SaveChangesAsync();
 
