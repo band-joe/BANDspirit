@@ -10,6 +10,10 @@ import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
+} from '@/components/ui/alert-dialog';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { hasPermission } from '@/lib/rbac';
@@ -21,7 +25,7 @@ import { CircleListItem, DriverListItem, OrgUser, OrgUserProfile, DashboardCircl
 import { sortCirclesByReview } from '@/lib/dashboard-helpers';
 import { formatDate } from '@/lib/utils';
 import { MemberAvatar } from '@/components/member-avatar';
-import { CircleDot, Plus, Search, Users, Calendar, Zap, CheckCircle2, ChevronRight, ChevronDown, Network, AlertTriangle, UsersRound, Crown, Handshake, Gavel, UserCircle, Mail, Phone, Clock } from 'lucide-react';
+import { CircleDot, Plus, Search, Users, Calendar, Zap, CheckCircle2, ChevronRight, ChevronDown, Network, AlertTriangle, UsersRound, Crown, Handshake, Gavel, UserCircle, Mail, Phone, Clock, UserMinus } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { toast } from 'sonner';
 
@@ -143,6 +147,22 @@ export default function OrganisationPage() {
       setMembersLoading(false);
     }
   }, [session]);
+
+  // Neuer Issue (2026-09-21): Zuweisungen liessen sich aus diesem
+  // "Mitglieder & Rollen"-Überblicksdialog nicht mehr lösen - der Dialog war
+  // rein lesend, das Entfernen war nur über die einzelne Kreis-Detailseite
+  // möglich. Nutzt dieselbe Backend-Aktion wie dort und lädt den Dialog
+  // anschliessend neu.
+  const handleUnassignFromDialog = useCallback(async (roleId: string, userId: string) => {
+    if (!membersDialogCircle) return;
+    try {
+      await apiClient.post(`/odata/Roles(${roleId})/Unassign`, { userId }, session);
+      toast.success('Zuweisung entfernt');
+      await openMembers(membersDialogCircle);
+    } catch (error: unknown) {
+      toast.error(error instanceof ApiError ? (error.message || 'Zuweisung konnte nicht entfernt werden') : 'Zuweisung konnte nicht entfernt werden');
+    }
+  }, [membersDialogCircle, session, openMembers]);
 
   const loadCircles = useCallback(async () => {
     if (!session) return;
@@ -1254,7 +1274,7 @@ export default function OrganisationPage() {
             </div>
           ) : (() => {
             // Mitglieder aus den Rollen-Zuweisungen aufbauen (nach Benutzer gruppiert)
-            const memberMap = new Map<string, { id: string; name: string; email?: string; telefon?: string; roles: { name: string; isCoordinator: boolean; isRepresentative: boolean; isFacilitator: boolean }[] }>();
+            const memberMap = new Map<string, { id: string; name: string; email?: string; telefon?: string; roles: { roleId: string; name: string; isCoordinator: boolean; isRepresentative: boolean; isFacilitator: boolean }[] }>();
             for (const r of membersRoles) {
               const roleName = (r.rollenDefinition?.name ?? 'Rolle') as string;
               const flags = { isCoordinator: !!r.isCoordinator, isRepresentative: !!r.isRepresentative, isFacilitator: !!r.isFacilitator };
@@ -1265,7 +1285,7 @@ export default function OrganisationPage() {
                 if (!memberMap.has(key)) {
                   memberMap.set(key, { id: key, name: (a.user.name ?? 'Unbenannt') as string, email: a.user.email as string | undefined, telefon: a.user.telefon as string | undefined, roles: [] });
                 }
-                memberMap.get(key)!.roles.push({ name: roleName, ...flags });
+                memberMap.get(key)!.roles.push({ roleId: r.id as string, name: roleName, ...flags });
               }
             }
             const members = Array.from(memberMap.values()).sort((a, b) => a.name.localeCompare(b.name));
@@ -1311,12 +1331,31 @@ export default function OrganisationPage() {
                       </div>
                     </div>
                     <div className="mt-2 flex flex-wrap gap-1.5 pl-11">
-                      {m.roles.map((role, j) => (
+                      {m.roles.map((r, j) => (
                         <Badge key={j} variant="secondary" className="text-xs flex items-center gap-1">
-                          {role.isCoordinator && <Crown className="h-3 w-3" />}
-                          {role.isRepresentative && <Handshake className="h-3 w-3" />}
-                          {role.isFacilitator && <Gavel className="h-3 w-3" />}
-                          {role.name}
+                          {r.isCoordinator && <Crown className="h-3 w-3" />}
+                          {r.isRepresentative && <Handshake className="h-3 w-3" />}
+                          {r.isFacilitator && <Gavel className="h-3 w-3" />}
+                          {r.name}
+                          {hasPermission(role, 'org:role:unassign') && (
+                            <AlertDialog>
+                              <AlertDialogTrigger asChild>
+                                <button type="button" className="ml-0.5 rounded hover:bg-black/10" aria-label={`${m.name} von Rolle „${r.name}“ entfernen`}>
+                                  <UserMinus className="h-3 w-3" />
+                                </button>
+                              </AlertDialogTrigger>
+                              <AlertDialogContent>
+                                <AlertDialogHeader>
+                                  <AlertDialogTitle>Zuweisung entfernen?</AlertDialogTitle>
+                                  <AlertDialogDescription>{m.name} von Rolle &quot;{r.name}&quot; entfernen?</AlertDialogDescription>
+                                </AlertDialogHeader>
+                                <AlertDialogFooter>
+                                  <AlertDialogCancel>Abbrechen</AlertDialogCancel>
+                                  <AlertDialogAction onClick={() => handleUnassignFromDialog(r.roleId, m.id)}>Entfernen</AlertDialogAction>
+                                </AlertDialogFooter>
+                              </AlertDialogContent>
+                            </AlertDialog>
+                          )}
                         </Badge>
                       ))}
                     </div>
