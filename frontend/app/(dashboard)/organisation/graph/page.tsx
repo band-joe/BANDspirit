@@ -29,9 +29,12 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { apiClient, getToken } from '@/lib/api-client';
 import { stripHtml } from '@/lib/utils';
 import { MemberAvatar } from '@/components/member-avatar';
+import { OrgCircleView } from './circle-view/circle-view';
+import type { GraphRole, GraphCircle } from './circle-view/types';
 import {
   CircleDot, Users, Zap, ChevronRight, ChevronDown, UsersRound, Crown, Handshake, Gavel,
   Network, Loader2, Eye, Layers, Search, UserCircle, Mail, Phone,
@@ -43,29 +46,8 @@ const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? '';
 
 /* ------------------------------------------------------------------ */
 /*  Types (Format des Endpunkts /api/org/graph)                        */
+/*  GraphRole/GraphCircle/RoleAssignment: siehe ./circle-view/types.ts */
 /* ------------------------------------------------------------------ */
-
-interface RoleAssignment {
-  user: { id: string; name: string | null; email?: string | null; telefon?: string | null };
-}
-
-interface GraphRole {
-  id: string;
-  name: string;
-  isCoordinator: boolean;
-  isRepresentative: boolean;
-  isFacilitator: boolean;
-  isLeadLink?: boolean;
-  assignments: RoleAssignment[];
-}
-
-interface GraphCircle {
-  id: string;
-  name: string;
-  purpose: string | null;
-  parentId: string | null;
-  roles: GraphRole[];
-}
 
 // Benutzer-Suche in der Organisation
 interface OrgUser {
@@ -112,6 +94,9 @@ export default function OrganigrammPage() {
   // Modal: Mitglieder & Rollen eines Kreises (nur Ansicht)
   const [membersDialogCircle, setMembersDialogCircle] = useState<GraphCircle | null>(null);
 
+  // Ansicht-Umschalter: Baum (bestehende Akkordion-Ansicht) oder grafische Kreisdarstellung.
+  const [viewMode, setViewMode] = useState<'tree' | 'circles'>('tree');
+
   // Such-Modus: nach Kreisen oder nach Benutzern suchen (wie in der Organisation).
   const [searchMode, setSearchMode] = useState<'circles' | 'users'>('circles');
   const [circleSearch, setCircleSearch] = useState('');
@@ -124,6 +109,11 @@ export default function OrganigrammPage() {
 
   // Auf-/Zuklappzustand: IDs der zugeklappten Kreise (leeres Set = alles aufgeklappt).
   const [collapsedIds, setCollapsedIds] = useState<Set<string>>(new Set());
+
+  // Nach einem Sprung aus der Kreis-Ansicht: zu diesem Kreis in der Baumansicht
+  // scrollen (einmalig) und ihn kurz optisch hervorheben.
+  const [scrollToCircleId, setScrollToCircleId] = useState<string | null>(null);
+  const [jumpHighlightId, setJumpHighlightId] = useState<string | null>(null);
 
   // Profil-Dialog (Profil des gefundenen Benutzers)
   const [profilUserId, setProfilUserId] = useState<string | null>(null);
@@ -274,6 +264,45 @@ export default function OrganigrammPage() {
     [allExpanded, circlesWithChildren]
   );
 
+  // Klick auf einen Kreis in der Kreis-Ansicht verzweigt in die Baumansicht.
+  // Alle Vorfahren des angeklickten Kreises werden dabei aufgeklappt, damit
+  // der Kreis in der Baumansicht auch tatsächlich sichtbar ist.
+  const handleCircleNavigateToTree = useCallback((circleId: string) => {
+    setViewMode('tree');
+    setSearchMode('circles');
+    setCircleSearch('');
+    setCollapsedIds(prev => {
+      const next = new Set(prev);
+      let current = circles.find(c => c.id === circleId);
+      while (current?.parentId) {
+        next.delete(current.parentId);
+        current = circles.find(c => c.id === current!.parentId);
+      }
+      return next;
+    });
+    setScrollToCircleId(circleId);
+  }, [circles]);
+
+  // Sobald der Zielkreis in der Baumansicht im DOM steht (Tab-Wechsel +
+  // Aufklappen sind abgeschlossen), zu ihm scrollen und ihn kurz hervorheben.
+  useEffect(() => {
+    if (!scrollToCircleId || viewMode !== 'tree') return;
+    const id = scrollToCircleId;
+    const raf = requestAnimationFrame(() => {
+      document.getElementById(`org-circle-${id}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      setJumpHighlightId(id);
+      setScrollToCircleId(null);
+    });
+    return () => cancelAnimationFrame(raf);
+  }, [scrollToCircleId, viewMode, collapsedIds]);
+
+  // Hervorhebung nach kurzer Zeit wieder entfernen.
+  useEffect(() => {
+    if (!jumpHighlightId) return;
+    const t = setTimeout(() => setJumpHighlightId(null), 2000);
+    return () => clearTimeout(t);
+  }, [jumpHighlightId]);
+
   // Gefilterte Kreise (Name oder Zweck) – für die Kreis-Suche.
   const filteredCircles = useMemo(() => {
     if (!circleSearch) return [];
@@ -310,12 +339,16 @@ export default function OrganigrammPage() {
   }, [circles]);
 
   // Karteninhalt eines Kreises (nur Ansicht – kein Link in die Bearbeitung).
-  const circleCard = (circle: GraphCircle) => {
+  const circleCard = (circle: GraphCircle, highlighted = false) => {
     const subCount = childrenByParent.get(circle.id)?.length ?? 0;
     const roleCount = circle.roles.length;
     const mCount = memberCount(circle);
     return (
-      <Card className="hover:shadow-md transition-shadow">
+      <Card
+        className={`hover:shadow-md transition-shadow ${
+          highlighted ? 'border-primary bg-primary/5 shadow-md' : ''
+        }`}
+      >
         <CardContent className="py-4">
           {/* UI-03-Fix: Auf schmalen Viewports rutscht die Aktion unter die
               Kreis-Angaben statt das Layout horizontal zu sprengen (die feste
@@ -374,7 +407,7 @@ export default function OrganigrammPage() {
     // auf Telefonbreite bereits einen Grossteil der verfügbaren Breite.
     const indentSteps = Math.min(depth, 5);
     return (
-      <div key={circle.id} className="space-y-3 min-w-0">
+      <div key={circle.id} id={`org-circle-${circle.id}`} className="space-y-3 min-w-0">
         <div style={{ paddingLeft: `${indentSteps}rem` }} className="flex items-start gap-1 min-w-0">
           {/* Toggle-Button: nur anzeigen, wenn Kinder vorhanden */}
           {hasKids ? (
@@ -401,7 +434,7 @@ export default function OrganigrammPage() {
             <span className="mt-[1.1rem] flex-shrink-0 w-6 inline-block" />
           )}
           <div className="flex-1 min-w-0">
-            {circleCard(circle)}
+            {circleCard(circle, jumpHighlightId === circle.id)}
           </div>
         </div>
         {/* Kinder nur rendern, wenn nicht zugeklappt */}
@@ -494,167 +527,192 @@ export default function OrganigrammPage() {
             </Card>
           </div>
 
-          {/* Such-Modus-Umschalter (Kreise / Benutzer) */}
-          <div className="inline-flex rounded-lg border p-1 bg-muted/40 w-fit">
-            <button
-              type="button"
-              onClick={() => setSearchMode('circles')}
-              className={`px-3 py-1.5 text-sm font-medium rounded-md flex items-center gap-2 transition-colors ${
-                searchMode === 'circles'
-                  ? 'bg-background shadow text-foreground'
-                  : 'text-muted-foreground hover:text-foreground'
-              }`}
-            >
-              <CircleDot className="h-4 w-4" />
-              Kreise
-            </button>
-            <button
-              type="button"
-              onClick={() => setSearchMode('users')}
-              className={`px-3 py-1.5 text-sm font-medium rounded-md flex items-center gap-2 transition-colors ${
-                searchMode === 'users'
-                  ? 'bg-background shadow text-foreground'
-                  : 'text-muted-foreground hover:text-foreground'
-              }`}
-            >
-              <UserCircle className="h-4 w-4" />
-              Benutzer
-            </button>
-          </div>
+          {/* Ansicht-Umschalter: Baum (Akkordion) vs. grafische Kreisdarstellung */}
+          <Tabs value={viewMode} onValueChange={(v) => setViewMode(v as 'tree' | 'circles')}>
+            <TabsList>
+              <TabsTrigger value="tree" className="gap-2">
+                <Layers className="h-4 w-4" />
+                Baum
+              </TabsTrigger>
+              <TabsTrigger value="circles" className="gap-2">
+                <CircleDot className="h-4 w-4" />
+                Kreise
+              </TabsTrigger>
+            </TabsList>
 
-          {/* Suchfeld + Organisationsstruktur-Schalter */}
-          <div className="flex flex-col sm:flex-row gap-3 sm:items-center justify-between">
-            <div className="relative max-w-sm w-full">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              {searchMode === 'circles' ? (
-                <Input
-                  placeholder="Kreise suchen…"
-                  value={circleSearch}
-                  onChange={(e) => setCircleSearch(e.target.value)}
-                  className="pl-10"
-                />
-              ) : (
-                <Input
-                  placeholder="Benutzer suchen (Name oder E-Mail)…"
-                  value={userSearch}
-                  onChange={(e) => setUserSearch(e.target.value)}
-                  className="pl-10"
-                />
+            <TabsContent value="tree" className="space-y-6 mt-4">
+              {/* Such-Modus-Umschalter (Kreise / Benutzer) */}
+              <div className="inline-flex rounded-lg border p-1 bg-muted/40 w-fit">
+                <button
+                  type="button"
+                  onClick={() => setSearchMode('circles')}
+                  className={`px-3 py-1.5 text-sm font-medium rounded-md flex items-center gap-2 transition-colors ${
+                    searchMode === 'circles'
+                      ? 'bg-background shadow text-foreground'
+                      : 'text-muted-foreground hover:text-foreground'
+                  }`}
+                >
+                  <CircleDot className="h-4 w-4" />
+                  Kreise
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSearchMode('users')}
+                  className={`px-3 py-1.5 text-sm font-medium rounded-md flex items-center gap-2 transition-colors ${
+                    searchMode === 'users'
+                      ? 'bg-background shadow text-foreground'
+                      : 'text-muted-foreground hover:text-foreground'
+                  }`}
+                >
+                  <UserCircle className="h-4 w-4" />
+                  Benutzer
+                </button>
+              </div>
+
+              {/* Suchfeld + Organisationsstruktur-Schalter */}
+              <div className="flex flex-col sm:flex-row gap-3 sm:items-center justify-between">
+                <div className="relative max-w-sm w-full">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  {searchMode === 'circles' ? (
+                    <Input
+                      placeholder="Kreise suchen…"
+                      value={circleSearch}
+                      onChange={(e) => setCircleSearch(e.target.value)}
+                      className="pl-10"
+                    />
+                  ) : (
+                    <Input
+                      placeholder="Benutzer suchen (Name oder E-Mail)…"
+                      value={userSearch}
+                      onChange={(e) => setUserSearch(e.target.value)}
+                      className="pl-10"
+                    />
+                  )}
+                </div>
+                {searchMode === 'circles' && !circleSearch && circlesWithChildren.size > 0 && (
+                  <Button
+                    variant="outline"
+                    onClick={toggleAll}
+                    title="Gesamte Organisationsstruktur auf- oder zuklappen"
+                    className="flex-shrink-0 bg-blue-100 text-blue-800 border-blue-200 hover:bg-blue-200 hover:text-blue-900 dark:bg-blue-900/30 dark:text-blue-200 dark:border-blue-800 dark:hover:bg-blue-900/50"
+                  >
+                    <Network className="h-4 w-4 mr-2" />
+                    Gesamte Organisationsstruktur
+                    {allExpanded ? <ChevronDown className="h-4 w-4 ml-2" /> : <ChevronRight className="h-4 w-4 ml-2" />}
+                  </Button>
+                )}
+              </div>
+
+              {/* ---- Kreis-Ansicht (ausgeklappt) bzw. Kreis-Suchergebnisse ---- */}
+              {searchMode === 'circles' && (
+                rootCircles.length === 0 ? (
+                  <Card>
+                    <CardContent className="py-12 text-center">
+                      <CircleDot className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                      <h3 className="text-lg font-semibold mb-2">Noch keine Kreise vorhanden</h3>
+                      <p className="text-muted-foreground">
+                        Sobald Kreise angelegt sind, wird hier die Organisationsstruktur angezeigt.
+                      </p>
+                    </CardContent>
+                  </Card>
+                ) : circleSearch ? (
+                  filteredCircles.length === 0 ? (
+                    <Card>
+                      <CardContent className="py-12 text-center">
+                        <CircleDot className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                        <h3 className="text-lg font-semibold mb-2">Keine Kreise gefunden</h3>
+                        <p className="text-muted-foreground">Versuchen Sie einen anderen Suchbegriff.</p>
+                      </CardContent>
+                    </Card>
+                  ) : (
+                    <div className="grid gap-4">
+                      {filteredCircles.map((circle, idx) => (
+                        <motion.div
+                          key={circle.id}
+                          initial={{ opacity: 0, y: 10 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          transition={{ delay: idx * 0.03 }}
+                        >
+                          {circleCard(circle)}
+                        </motion.div>
+                      ))}
+                    </div>
+                  )
+                ) : (
+                  <div className="grid gap-4">
+                    {rootCircles.map(circle => renderCircleNode(circle, 0))}
+                  </div>
+                )
               )}
-            </div>
-            {searchMode === 'circles' && !circleSearch && circlesWithChildren.size > 0 && (
-              <Button
-                variant="outline"
-                onClick={toggleAll}
-                title="Gesamte Organisationsstruktur auf- oder zuklappen"
-                className="flex-shrink-0 bg-blue-100 text-blue-800 border-blue-200 hover:bg-blue-200 hover:text-blue-900 dark:bg-blue-900/30 dark:text-blue-200 dark:border-blue-800 dark:hover:bg-blue-900/50"
-              >
-                <Network className="h-4 w-4 mr-2" />
-                Gesamte Organisationsstruktur
-                {allExpanded ? <ChevronDown className="h-4 w-4 ml-2" /> : <ChevronRight className="h-4 w-4 ml-2" />}
-              </Button>
-            )}
-          </div>
 
-          {/* ---- Kreis-Ansicht (ausgeklappt) bzw. Kreis-Suchergebnisse ---- */}
-          {searchMode === 'circles' && (
-            rootCircles.length === 0 ? (
-              <Card>
-                <CardContent className="py-12 text-center">
-                  <CircleDot className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                  <h3 className="text-lg font-semibold mb-2">Noch keine Kreise vorhanden</h3>
-                  <p className="text-muted-foreground">
-                    Sobald Kreise angelegt sind, wird hier die Organisationsstruktur angezeigt.
-                  </p>
-                </CardContent>
-              </Card>
-            ) : circleSearch ? (
-              filteredCircles.length === 0 ? (
+              {/* ---- Benutzer-Suchergebnisse ---- */}
+              {searchMode === 'users' && (usersLoading ? (
+                <div className="flex justify-center py-12">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
+                </div>
+              ) : filteredUsers.length === 0 ? (
                 <Card>
                   <CardContent className="py-12 text-center">
-                    <CircleDot className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                    <h3 className="text-lg font-semibold mb-2">Keine Kreise gefunden</h3>
-                    <p className="text-muted-foreground">Versuchen Sie einen anderen Suchbegriff.</p>
+                    <UserCircle className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                    <h3 className="text-lg font-semibold mb-2">
+                      {userSearch ? 'Keine Benutzer gefunden' : 'Keine Benutzer vorhanden'}
+                    </h3>
+                    <p className="text-muted-foreground">
+                      {userSearch
+                        ? 'Versuchen Sie einen anderen Suchbegriff (Name oder E-Mail).'
+                        : 'Es sind noch keine Benutzer erfasst.'}
+                    </p>
                   </CardContent>
                 </Card>
               ) : (
-                <div className="grid gap-4">
-                  {filteredCircles.map((circle, idx) => (
+                <div className="grid gap-3 sm:grid-cols-2">
+                  {filteredUsers.map((u, idx) => (
                     <motion.div
-                      key={circle.id}
+                      key={u.id}
                       initial={{ opacity: 0, y: 10 }}
                       animate={{ opacity: 1, y: 0 }}
-                      transition={{ delay: idx * 0.03 }}
+                      transition={{ delay: idx * 0.02 }}
                     >
-                      {circleCard(circle)}
+                      <Card
+                        className="hover:shadow-md transition-shadow cursor-pointer"
+                        onClick={() => openProfil(u.id)}
+                        title="Profil anzeigen"
+                      >
+                        <CardContent className="py-4">
+                          <div className="flex items-center gap-3">
+                            <div className={`w-11 h-11 rounded-full flex items-center justify-center text-sm font-bold flex-shrink-0 ${
+                              u.aktiv ? 'bg-primary/10 text-primary' : 'bg-muted text-muted-foreground'
+                            }`}>
+                              {(u.name ?? '?').charAt(0).toUpperCase()}
+                            </div>
+                            <div className="min-w-0 flex-1">
+                              <p className={`font-semibold truncate ${!u.aktiv ? 'text-muted-foreground' : ''}`}>{u.name}</p>
+                              <p className="text-sm text-muted-foreground truncate flex items-center gap-1">
+                                <Mail className="h-3 w-3" /> {u.email}
+                              </p>
+                            </div>
+                            {!u.aktiv && (
+                              <Badge variant="secondary" className="bg-red-100 text-red-700 flex-shrink-0">Inaktiv</Badge>
+                            )}
+                            <ChevronRight className="h-5 w-5 text-muted-foreground flex-shrink-0" />
+                          </div>
+                        </CardContent>
+                      </Card>
                     </motion.div>
                   ))}
                 </div>
-              )
-            ) : (
-              <div className="grid gap-4">
-                {rootCircles.map(circle => renderCircleNode(circle, 0))}
-              </div>
-            )
-          )}
-
-          {/* ---- Benutzer-Suchergebnisse ---- */}
-          {searchMode === 'users' && (usersLoading ? (
-            <div className="flex justify-center py-12">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
-            </div>
-          ) : filteredUsers.length === 0 ? (
-            <Card>
-              <CardContent className="py-12 text-center">
-                <UserCircle className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                <h3 className="text-lg font-semibold mb-2">
-                  {userSearch ? 'Keine Benutzer gefunden' : 'Keine Benutzer vorhanden'}
-                </h3>
-                <p className="text-muted-foreground">
-                  {userSearch
-                    ? 'Versuchen Sie einen anderen Suchbegriff (Name oder E-Mail).'
-                    : 'Es sind noch keine Benutzer erfasst.'}
-                </p>
-              </CardContent>
-            </Card>
-          ) : (
-            <div className="grid gap-3 sm:grid-cols-2">
-              {filteredUsers.map((u, idx) => (
-                <motion.div
-                  key={u.id}
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: idx * 0.02 }}
-                >
-                  <Card
-                    className="hover:shadow-md transition-shadow cursor-pointer"
-                    onClick={() => openProfil(u.id)}
-                    title="Profil anzeigen"
-                  >
-                    <CardContent className="py-4">
-                      <div className="flex items-center gap-3">
-                        <div className={`w-11 h-11 rounded-full flex items-center justify-center text-sm font-bold flex-shrink-0 ${
-                          u.aktiv ? 'bg-primary/10 text-primary' : 'bg-muted text-muted-foreground'
-                        }`}>
-                          {(u.name ?? '?').charAt(0).toUpperCase()}
-                        </div>
-                        <div className="min-w-0 flex-1">
-                          <p className={`font-semibold truncate ${!u.aktiv ? 'text-muted-foreground' : ''}`}>{u.name}</p>
-                          <p className="text-sm text-muted-foreground truncate flex items-center gap-1">
-                            <Mail className="h-3 w-3" /> {u.email}
-                          </p>
-                        </div>
-                        {!u.aktiv && (
-                          <Badge variant="secondary" className="bg-red-100 text-red-700 flex-shrink-0">Inaktiv</Badge>
-                        )}
-                        <ChevronRight className="h-5 w-5 text-muted-foreground flex-shrink-0" />
-                      </div>
-                    </CardContent>
-                  </Card>
-                </motion.div>
               ))}
-            </div>
-          ))}
+            </TabsContent>
+
+            <TabsContent value="circles" className="mt-4">
+              <OrgCircleView
+                circles={circles}
+                loading={loading}
+                error={error}
+                onNavigateToTree={handleCircleNavigateToTree}
+              />
+            </TabsContent>
+          </Tabs>
         </>
       )}
 

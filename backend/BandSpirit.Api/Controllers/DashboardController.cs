@@ -133,8 +133,9 @@ public class OrgGraphController : ControllerBase
     /// GET /api/org/graph – Liefert die Kreis-Hierarchie inkl. Rollen und
     /// Besetzungen im Format, das das Frontend-Organigramm erwartet
     /// (Kreismodell nach Vorbild von talkspirit: verschachtelte Kreise mit
-    /// Rollen). Antwort: { circles: [ { id, name, purpose, parentId,
-    /// roles: [ { id, name, isCoordinator, isRepresentative, isFacilitator,
+    /// Rollen). Antwort: { circles: [ { id, name, purpose, accountabilities,
+    /// parentId, roles: [ { id, name, purpose, domain, accountabilities,
+    /// description, isCoordinator, isRepresentative, isFacilitator,
     /// isLeadLink, assignments: [ { user: { id, name } } ] } ] } ] }.
     /// </summary>
     [HttpGet("graph")]
@@ -148,7 +149,7 @@ public class OrgGraphController : ControllerBase
         // über parentId). Kreise mit DateTo < heute werden ausgeschlossen.
         var kreise = await _db.S3Circles
             .Where(c => !c.DateTo.HasValue || c.DateTo.Value >= heuteUtc)
-            .Select(c => new { c.Id, c.Name, c.Zweck, c.ParentId })
+            .Select(c => new { c.Id, c.Name, c.Zweck, c.Verantwortlichkeit, c.ParentId })
             .ToListAsync();
 
         // Rollen inkl. Definition (für Name/Lead-Link) und Besetzungen laden.
@@ -164,6 +165,7 @@ public class OrgGraphController : ControllerBase
             id = c.Id,
             name = c.Name,
             purpose = c.Zweck,
+            accountabilities = c.Verantwortlichkeit,
             parentId = c.ParentId,
             roles = rollen
                 .Where(r => r.CircleId == c.Id)
@@ -173,6 +175,10 @@ public class OrgGraphController : ControllerBase
                 {
                     id = r.Id,
                     name = r.RollenDefinition != null ? r.RollenDefinition.Name : "Rolle",
+                    purpose = r.RollenDefinition != null ? r.RollenDefinition.Zweck : null,
+                    domain = r.RollenDefinition != null ? r.RollenDefinition.Domaene : null,
+                    accountabilities = r.RollenDefinition != null ? r.RollenDefinition.Verantwortlichkeit : null,
+                    description = r.RollenDefinition != null ? r.RollenDefinition.Beschreibung : null,
                     isCoordinator = r.IsCoordinator,
                     isRepresentative = r.IsRepresentative,
                     isFacilitator = r.IsFacilitator,
