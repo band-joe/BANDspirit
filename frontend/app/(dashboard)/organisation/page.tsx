@@ -1313,7 +1313,7 @@ export default function OrganisationPage() {
                 {members.map((m, i) => (
                   <div key={i} className="rounded-lg border p-3">
                     <div className="flex items-center gap-3">
-                      <MemberAvatar userId={m.id} name={m.name} size={40} />
+                      <MemberAvatar userId={m.id} name={m.name} size={80} />
                       <div className="min-w-0">
                         <p className="font-medium truncate">{m.name}</p>
                         {m.email && (

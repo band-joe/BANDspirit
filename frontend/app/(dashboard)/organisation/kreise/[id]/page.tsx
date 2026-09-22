@@ -196,7 +196,7 @@ export default function KreisDetailPage() {
       // Zugehörige Datensätze separat und fehlertolerant laden
       const [rolesRes, driversRes, childrenRes] = await Promise.all([
         apiClient.get<ODataResponse<Record<string, any>>>(
-          `/odata/Roles?$filter=CircleId eq ${params.id} and Aktiv eq true&$expand=RollenDefinition,Assignments($expand=User)`,
+          `/odata/Roles?$filter=CircleId eq ${params.id} and Aktiv eq true&$expand=RollenDefinition,Assignments($expand=User)&$orderby=RollenDefinition/SortOrder,RollenDefinition/Name`,
           session,
         ).catch(() => ({ value: [] as Record<string, any>[] })),
         apiClient.get<ODataResponse<Record<string, any>>>(
@@ -261,9 +261,11 @@ export default function KreisDetailPage() {
 
   useEffect(() => {
     if (!session) return;
-    // Benutzer für Zuweisungen laden (OData)
-    apiClient.get<ODataResponse<Record<string, unknown>>>('/odata/Users?$orderby=Name', session).then(data => {
-      setUsers((data.value ?? []).filter((u: Record<string, unknown>) => u.aktiv !== false).map((u: Record<string, unknown>) => ({ id: u.id as string, name: u.name as string, email: u.email as string })));
+    // Benutzer für Zuweisungen laden (OData, seitenweise – der Server liefert
+    // /odata/Users mit PageSize 100, ein einfacher get() hätte bei mehr als
+    // 100 aktiven Usern stillschweigend nur die erste Seite geliefert).
+    apiClient.getAllPages<Record<string, unknown>>('/odata/Users?$orderby=Name', session).then(data => {
+      setUsers(data.filter((u: Record<string, unknown>) => u.aktiv !== false).map((u: Record<string, unknown>) => ({ id: u.id as string, name: u.name as string, email: u.email as string })));
     }).catch(() => {});
 
     // Aktive Rollen-Definitionen (Vorlagen) über OData laden
