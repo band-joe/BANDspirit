@@ -171,12 +171,16 @@ OData-Actions: `Proposals({id})/Decide`, `Roles({id})/Assign`,
 | Methode | Pfad | Beschreibung |
 |---|---|---|
 | GET | `/api/dashboard` | Aggregierte Kennzahlen |
-| GET | `/api/org/graph` | Kreis-Hierarchie als Baum |
+| GET | `/api/org/graph` | Gesamte Kreis-Hierarchie als Baum inkl. Rollen/Besetzungen (kein separates GET pro einzelnem Kreis — Filterung auf einen Kreis/dessen Vorfahren erfolgt clientseitig) |
 | GET/POST | `/api/org/circle-lifecycle` | Life-Cycle-Reviews für Kreise |
 | POST | `/api/circles/{id}/anhaengen`, `/api/circles/{id}/loesen` | Kreis unter einen anderen Kreis hängen / zu Root-Kreis lösen |
 | GET | `/api/rollen/meine` | Eigene Berechtigungen |
-| GET | `/api/profil/meins` | Eigenes Profil (inkl. Lead-Links über mir) |
-| GET/POST/DELETE | `/api/profil/foto` | Eigenes Profilfoto (S3) |
+| GET | `/api/profil/meins` | Eigenes Profil: Name, E-Mail, Foto, Kreis-Zugehörigkeit je Kreis mit dessen Lead-Link (Kreis-ID bewusst nicht enthalten) |
+| GET | `/api/profil/meins/lead-links-ueber-mir` | Lead-Link-Hierarchie ÜBER dem angemeldeten Benutzer: Lead-Links der eigenen Kreise + aller Elternkreise bis zur Wurzel, tiefensortiert |
+| GET | `/api/profil/benutzer` | Schlanke Liste aller Benutzer (Id, Name, E-Mail, Aktiv) für die Benutzersuche |
+| GET | `/api/profil/benutzer/{id}` | Profil eines beliebigen Benutzers (wie `/meins`, inkl. Kreis-Zugehörigkeit + Lead-Link je Kreis) |
+| GET/POST/DELETE | `/api/profil/foto` | Eigenes Profilfoto ansehen/hochladen/löschen (S3) |
+| GET | `/api/profil/benutzer/{id}/foto` | Profilfoto eines beliebigen Benutzers ansehen (S3) |
 | GET/POST/PUT/DELETE | `/api/mailverteiler` | Mail-Verteiler-Verwaltung |
 | GET/PUT | `/api/role-permissions` | Berechtigungen je Benutzerrolle |
 | GET/POST/DELETE | `/api/rollendefinitionen/{id}/dokumente` | Dokumente je S3-Rollendefinition |
