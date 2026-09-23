@@ -65,12 +65,16 @@ refuses to start (see the startup check in `Program.cs`).
 
 ## Backend architecture
 
-- **Controllers**: mix of plain REST (`AuthController`, `DashboardController`, `FirmaController`, …) and
-  OData-backed controllers exposing `EntitySet`s declared in `Program.cs` (`Users`, `Circles`, `Roles`,
-  `Meetings`, `Proposals`, `Drivers`, `OKRs`, `KeyResults`, `KpiDefinitions`, `KpiMeasurements`,
-  `SupportTickets`, `FAQs`, `BiKompassVersions`, `BiGuideNews`, `AppLogs`, `Stammdaten`, plus the `Firma`
-  singleton). OData query options (`$filter`, `$select`, `$expand`, `$orderby`, `$top`, `$skip`, `$count`)
-  are enabled with `SetMaxTop(500)`.
+- **Controllers**: mix of plain REST (`AuthController`, `DashboardController`, `FirmaController`,
+  `MailVerteilerController`, `CircleLifecycleController`, `RolePermissionsController`, `ProfilController`,
+  `CircleHierarchyController`, …) and OData-backed controllers exposing `EntitySet`s declared in
+  `Program.cs` (`Users`, `BenutzerRollen`, `Circles`, `Roles`, `PersonRoleAssignments`, `Meetings`,
+  `Proposals`, `Objections`, `Drivers`, `SpannungWorkItems`, `OKRs`, `KeyResults`, `OkrZyklen`,
+  `KpiDefinitions`, `KpiMeasurements`, `SupportTickets`, `FAQs`, `BiKompassVersions`, `BiGuideNews`,
+  `BiGuideKategorien`, `AppLogs`, `Stammdaten`, `S3RollenDefinitionen`, `S3RolleKennzahlen`,
+  `S3LebenszyklusPhasen`, `S3CircleLebenszyklen`, plus the `Firma` singleton). OData query options
+  (`$filter`, `$select`, `$expand`, `$orderby`, `$top`, `$skip`, `$count`) are enabled with
+  `SetMaxTop(500)`.
 - **Serialization split**: OData responses use `EnableLowerCamelCase()` (camelCase properties, PascalCase
   enum values e.g. `"Admin"`). Non-OData REST endpoints use `JsonNamingPolicy.CamelCase` configured
   separately in `AddJsonOptions`. Both must stay in sync with what the frontend expects — see the comment

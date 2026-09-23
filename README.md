@@ -34,7 +34,7 @@ bandspirit/
 └── backend/
     └── BandSpirit.Api/         # C#-Backend
         ├── Controllers/        # Auth-, OData- und REST-Controller
-        ├── Models/             # 27 Entitäten (AuditableEntity als Basis)
+        ├── Models/             # 37 Entitäten (AuditableEntity als Basis)
         ├── DTOs/               # Datenübertragungsobjekte
         ├── Services/           # Fach-/Hilfsdienste (Auth, JWT, RBAC, S3, ICS …)
         ├── Infrastructure/
@@ -132,13 +132,20 @@ dotnet ef database update
 | POST | `/api/auth/forgot-password` | Passwort-Reset anfordern |
 | POST | `/api/auth/reset-password` | Passwort mit Token zurücksetzen |
 | POST | `/api/auth/signup` | Neuen Benutzer registrieren |
+| POST | `/api/auth/verify-email` | E-Mail-Adresse per Bestätigungslink verifizieren |
+| POST | `/api/auth/resend-verification` | Bestätigungslink erneut zusenden |
+| POST | `/api/auth/refresh` | JWT anhand Refresh-Token erneuern |
+| POST | `/api/auth/logout` | Token invalidieren (Blacklist) |
 
 ### OData v4 (`/odata`)
 
-EntitySets: `Users`, `Circles`, `Roles`, `Meetings`, `Proposals`, `Drivers`,
-`OKRs`, `KeyResults`, `KpiDefinitions`, `KpiMeasurements`, `SupportTickets`,
-`FAQs`, `BiKompassVersions`, `BiGuideNews`, `AppLogs`, `Stammdaten` sowie der
-Singleton `Firma`.
+EntitySets: `Users`, `BenutzerRollen`, `Circles`, `Roles`,
+`PersonRoleAssignments`, `Meetings`, `Proposals`, `Objections`, `Drivers`,
+`SpannungWorkItems`, `OKRs`, `KeyResults`, `OkrZyklen`, `KpiDefinitions`,
+`KpiMeasurements`, `SupportTickets`, `FAQs`, `BiKompassVersions`,
+`BiGuideNews`, `BiGuideKategorien`, `AppLogs`, `Stammdaten`,
+`S3RollenDefinitionen`, `S3RolleKennzahlen`, `S3LebenszyklusPhasen`,
+`S3CircleLebenszyklen` sowie der Singleton `Firma`.
 
 Unterstützte Query-Optionen: `$filter`, `$select`, `$expand`, `$orderby`,
 `$top`, `$skip`, `$count`.
@@ -152,9 +159,18 @@ OData-Actions: `Proposals({id})/Decide`, `Roles({id})/Assign`,
 |---|---|---|
 | GET | `/api/dashboard` | Aggregierte Kennzahlen |
 | GET | `/api/org/graph` | Kreis-Hierarchie als Baum |
+| GET/POST | `/api/org/circle-lifecycle` | Life-Cycle-Reviews für Kreise |
+| POST | `/api/circles/{id}/anhaengen`, `/api/circles/{id}/loesen` | Kreis unter einen anderen Kreis hängen / zu Root-Kreis lösen |
 | GET | `/api/rollen/meine` | Eigene Berechtigungen |
-| POST/DELETE | `/api/firma/logo` | Firmenlogo hoch-/herunterladen (S3) |
-| POST | `/api/bi-kompass/upload` | Presigned-Upload-URL (S3) |
+| GET | `/api/profil/meins` | Eigenes Profil (inkl. Lead-Links über mir) |
+| GET/POST/DELETE | `/api/profil/foto` | Eigenes Profilfoto (S3) |
+| GET/POST/PUT/DELETE | `/api/mailverteiler` | Mail-Verteiler-Verwaltung |
+| GET/PUT | `/api/role-permissions` | Berechtigungen je Benutzerrolle |
+| GET/POST/DELETE | `/api/rollendefinitionen/{id}/dokumente` | Dokumente je S3-Rollendefinition |
+| GET | `/api/kreise/{id}/aktivitaeten` | Aktivitäts-Feed eines Kreises |
+| GET | `/api/rollen/{id}/aktivitaeten` | Aktivitäts-Feed einer Kreisrolle |
+| POST/GET/DELETE | `/api/firma/logo` | Firmenlogo hoch-/herunterladen (S3) |
+| POST | `/api/bi-kompass/upload` | PDF hochladen → serverseitige, regelbasierte Text-/Kapitel-Extraktion (`UglyToad.PdfPig`), liefert Markdown zurück (kein S3-Presigned-URL, keine KI-Extraktion) |
 
 ---
 
