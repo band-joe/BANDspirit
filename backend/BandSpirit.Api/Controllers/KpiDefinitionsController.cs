@@ -19,27 +19,16 @@ public class KpiDefinitionsController : ODataController
     public KpiDefinitionsController(BandSpiritDbContext db) => _db = db;
 
     /// <summary>
-    /// Liefert alle für den Benutzer sichtbaren KPI-Definitionen. Admins sehen alle;
-    /// übrige Benutzer sehen organisationsweite (CircleId == null) sowie die ihren
-    /// Kreisen zugeordneten Definitionen.
+    /// Business-Entscheid: Sichtbarkeit/Schreibrecht von KPI-Definitionen richtet
+    /// sich ausschliesslich nach der Benutzerrolle (Permissions.KpiRead/KpiManage),
+    /// nicht nach der Kreis-Zugehörigkeit (S3-Rollenzuweisung) des Benutzers - eine
+    /// frühere zusätzliche Kreis-Scoping-Prüfung (CircleScope) wurde bewusst wieder
+    /// entfernt.
     /// </summary>
     [HttpGet]
     [EnableQuery(PageSize = 100)]
     [Authorize(Policy = Permissions.KpiRead)]
-    public IQueryable<KpiDefinition> Get()
-    {
-        if (CircleScope.IsAdmin(User))
-        {
-            return _db.KpiDefinitions.AsQueryable();
-        }
-        var userId = CircleScope.GetUserId(User);
-        if (userId is null)
-        {
-            return _db.KpiDefinitions.Where(d => d.CircleId == null);
-        }
-        var circleIds = CircleScope.UserCircleIds(_db, userId.Value);
-        return _db.KpiDefinitions.Where(d => d.CircleId == null || circleIds.Contains(d.CircleId.Value));
-    }
+    public IQueryable<KpiDefinition> Get() => _db.KpiDefinitions.AsQueryable();
 
     [HttpGet]
     [EnableQuery]
@@ -47,15 +36,7 @@ public class KpiDefinitionsController : ODataController
     public async Task<IActionResult> Get([FromRoute] Guid key)
     {
         var eintrag = await _db.KpiDefinitions.FirstOrDefaultAsync(d => d.Id == key);
-        if (eintrag is null)
-        {
-            return NotFound();
-        }
-        if (!CircleScope.CanRead(_db, User, eintrag.CircleId))
-        {
-            return Forbid();
-        }
-        return Ok(eintrag);
+        return eintrag is null ? NotFound() : Ok(eintrag);
     }
 
     [HttpPost]
@@ -65,10 +46,6 @@ public class KpiDefinitionsController : ODataController
         if (!ModelState.IsValid)
         {
             return BadRequest(ModelState);
-        }
-        if (!CircleScope.CanWrite(_db, User, eintrag.CircleId))
-        {
-            return Forbid();
         }
         var fehler = PruefeSchwellen(eintrag);
         if (fehler is not null)
@@ -89,17 +66,7 @@ public class KpiDefinitionsController : ODataController
         {
             return NotFound();
         }
-        // Schreibrecht am bestehenden Kreis prüfen.
-        if (!CircleScope.CanWrite(_db, User, eintrag.CircleId))
-        {
-            return Forbid();
-        }
         delta.Patch(eintrag);
-        // Wird der Kreis geändert, muss auch für den Zielkreis Schreibrecht bestehen.
-        if (!CircleScope.CanWrite(_db, User, eintrag.CircleId))
-        {
-            return Forbid();
-        }
         var fehler = PruefeSchwellen(eintrag);
         if (fehler is not null)
         {
@@ -117,10 +84,6 @@ public class KpiDefinitionsController : ODataController
         if (eintrag is null)
         {
             return NotFound();
-        }
-        if (!CircleScope.CanWrite(_db, User, eintrag.CircleId))
-        {
-            return Forbid();
         }
         _db.KpiDefinitions.Remove(eintrag);
         await _db.SaveChangesAsync();

@@ -91,13 +91,6 @@ export default function SpannungDetailPage() {
   const role = (session?.user as Record<string, unknown>)?.role as string ?? '';
   const canEdit = hasPermission(role, 'org:driver:update');
 
-  // Business-Entscheid: Nur der/die Lead-Link des jeweiligen Kreises (oder
-  // Admin) darf eine Spannung abschliessen - unabhaengig von der generellen
-  // "org:driver:update"-Berechtigung. Serverseitig ohnehin in
-  // DriversController.DarfSpannungAbschliessenAsync erzwungen; hier nur fuers
-  // Ein-/Ausblenden des Buttons ermittelt.
-  const [istLeadLinkDesKreises, setIstLeadLinkDesKreises] = useState(false);
-
   const [driver, setDriver] = useState<DriverDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState(false);
@@ -159,32 +152,6 @@ export default function SpannungDetailPage() {
       })
       .catch(() => {});
   }, [loadDriver, session]);
-
-  // Prüft, ob der angemeldete Benutzer Lead-Link des Kreises dieser Spannung
-  // ist (analog zur serverseitigen Prüfung in DriversController).
-  useEffect(() => {
-    const circleId = driver?.circle?.id;
-    const userId = session?.user?.id;
-    if (!session || !circleId || !userId) {
-      setIstLeadLinkDesKreises(false);
-      return;
-    }
-    apiClient
-      .get<{ circles: { id: string; roles: { isLeadLink: boolean; assignments: { user: { id: string } }[] }[] }[] }>(
-        '/api/org/graph',
-        session
-      )
-      .then((data) => {
-        const kreis = data.circles.find((c) => c.id === circleId);
-        const istLeadLink = !!kreis?.roles.some(
-          (r) => r.isLeadLink && r.assignments.some((a) => a.user.id === userId)
-        );
-        setIstLeadLinkDesKreises(istLeadLink);
-      })
-      .catch(() => setIstLeadLinkDesKreises(false));
-  }, [driver?.circle?.id, session]);
-
-  const kannAbschliessen = role === 'Admin' || istLeadLinkDesKreises;
 
   const isEditable = driver && driver.status !== 'ERLEDIGT';
 
@@ -344,7 +311,7 @@ export default function SpannungDetailPage() {
                 In Bearbeitung
               </Button>
             )}
-            {driver.status !== 'ERLEDIGT' && kannAbschliessen && (
+            {driver.status !== 'ERLEDIGT' && (
               <Button
                 variant="outline"
                 onClick={() => handleStatusChange('ERLEDIGT')}
@@ -361,7 +328,7 @@ export default function SpannungDetailPage() {
       </div>
 
       {/* Info hint when not completable */}
-      {canEdit && kannAbschliessen && isEditable && driver.status !== 'ERLEDIGT' && openWI > 0 && (
+      {canEdit && isEditable && driver.status !== 'ERLEDIGT' && openWI > 0 && (
         <div className="flex items-center gap-2 p-3 bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800 rounded-lg text-sm text-amber-800 dark:text-amber-300">
           <ListChecks className="h-4 w-4 flex-shrink-0" />
           <span>Es gibt noch {openWI} offene Arbeitsaufträge. Die Spannung kann erst auf «Erledigt» gesetzt werden, wenn alle Arbeitsaufträge erledigt sind.</span>
@@ -707,7 +674,7 @@ export default function SpannungDetailPage() {
               </div>
 
               {/* Can close hint */}
-              {canEdit && kannAbschliessen && isEditable && (
+              {canEdit && isEditable && (
                 <div className="pt-2 border-t">
                   <p className="text-muted-foreground mb-1">Abschluss</p>
                   {allWIDone ? (

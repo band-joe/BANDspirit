@@ -10,7 +10,13 @@ using Microsoft.EntityFrameworkCore;
 using BandSpirit.Api.Infrastructure.Auth;
 namespace BandSpirit.Api.Controllers;
 
-/// <summary>OData-Controller für OKRs mit kreis-basierter Filterung. Route: /odata/OKRs</summary>
+/// <summary>
+/// OData-Controller für OKRs. Route: /odata/OKRs
+/// Business-Entscheid: Zugriff richtet sich ausschliesslich nach der Benutzerrolle
+/// (Permissions.OkrRead/OkrManage), nicht nach der Kreis-Zugehörigkeit
+/// (S3-Rollenzuweisung) - eine frühere zusätzliche Kreis-Scoping-Prüfung
+/// (CircleScope) wurde bewusst wieder entfernt.
+/// </summary>
 [Authorize]
 public class OKRsController : ODataController
 {
@@ -18,47 +24,24 @@ public class OKRsController : ODataController
 
     public OKRsController(BandSpiritDbContext db) => _db = db;
 
-    /// <summary>Alle OKRs abrufen, gefiltert nach Kreis-Zugehörigkeit.</summary>
     [HttpGet]
     [EnableQuery(PageSize = 100)]
     [Authorize(Policy = Permissions.OkrRead)]
-    public IQueryable<OKR> Get()
-    {
-        var userId = CircleScope.GetUserId(User);
-        var isAdmin = CircleScope.IsAdmin(User);
-        var userCircles = userId.HasValue ? CircleScope.UserCircleIds(_db, userId.Value) : Enumerable.Empty<Guid>().AsQueryable();
+    public IQueryable<OKR> Get() => _db.OKRs.Include(o => o.Circle);
 
-        return _db.OKRs
-            .Include(o => o.Circle)
-            .Where(o => isAdmin || o.CircleId == null || userCircles.Contains(o.CircleId.Value));
-    }
-
-    /// <summary>Ein einzelnes OKR abrufen, kreis-gefiltert.</summary>
     [HttpGet]
     [EnableQuery]
     [Authorize(Policy = Permissions.OkrRead)]
     public async Task<IActionResult> Get([FromRoute] Guid key)
     {
-        var userId = CircleScope.GetUserId(User);
-        var isAdmin = CircleScope.IsAdmin(User);
-        var userCirclesList = userId.HasValue ? await CircleScope.UserCircleIds(_db, userId.Value).ToListAsync() : new List<Guid>();
-
         var eintrag = await _db.OKRs
             .Include(o => o.Circle)
             .FirstOrDefaultAsync(o => o.Id == key);
 
-        if (eintrag is null) return NotFound();
-
-        // Prüfen, ob User Zugriff auf diesen Kreis hat
-        if (!isAdmin && eintrag.CircleId.HasValue && !userCirclesList.Contains(eintrag.CircleId.Value))
-        {
-            return Forbid();
-        }
-
-        return Ok(eintrag);
+        return eintrag is null ? NotFound() : Ok(eintrag);
     }
 
-    /// <summary>Neues OKR erstellen. Kreis-Schreibrecht erforderlich.</summary>
+    /// <summary>Neues OKR erstellen.</summary>
     [HttpPost]
     [Authorize(Policy = Permissions.OkrManage)]
     public async Task<IActionResult> Post([FromBody] OKR eintrag)
@@ -68,18 +51,12 @@ public class OKRsController : ODataController
             return BadRequest(ModelState);
         }
 
-        // Schreibrecht prüfen
-        if (!CircleScope.CanWrite(_db, User, eintrag.CircleId))
-        {
-            return Forbid();
-        }
-
         _db.OKRs.Add(eintrag);
         await _db.SaveChangesAsync();
         return Created(eintrag);
     }
 
-    /// <summary>OKR aktualisieren. Kreis-Schreibrecht erforderlich.</summary>
+    /// <summary>OKR aktualisieren.</summary>
     [HttpPatch]
     [Authorize(Policy = Permissions.OkrManage)]
     public async Task<IActionResult> Patch([FromRoute] Guid key, [FromBody] Delta<OKR> delta)
@@ -93,18 +70,12 @@ public class OKRsController : ODataController
             return NotFound();
         }
 
-        // Schreibrecht prüfen
-        if (!CircleScope.CanWrite(_db, User, eintrag.CircleId))
-        {
-            return Forbid();
-        }
-
         delta.Patch(eintrag);
         await _db.SaveChangesAsync();
         return Updated(eintrag);
     }
 
-    /// <summary>OKR löschen. Kreis-Schreibrecht erforderlich.</summary>
+    /// <summary>OKR löschen.</summary>
     [HttpDelete]
     [Authorize(Policy = Permissions.OkrManage)]
     public async Task<IActionResult> Delete([FromRoute] Guid key)
@@ -116,12 +87,6 @@ public class OKRsController : ODataController
         if (eintrag is null)
         {
             return NotFound();
-        }
-
-        // Schreibrecht prüfen
-        if (!CircleScope.CanWrite(_db, User, eintrag.CircleId))
-        {
-            return Forbid();
         }
 
         _db.OKRs.Remove(eintrag);
