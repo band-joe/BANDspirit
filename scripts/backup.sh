@@ -10,9 +10,17 @@
 #        - minio-data     (hochgeladene Dateien / Objektspeicher)
 #        - redis-data     (Cache / Redis-Persistenz)
 #        - nginx-logs     (Zugriffs-/Fehlerprotokolle von nginx)
+#   3. SSL-Zertifikate       -> docker/nginx/ssl/ als .tar.gz
+#   4. .env-Datei             -> 1:1-Kopie (Zugriffsrechte 600)
 #
 # Alle Backups landen in einem zeitgestempelten Unterordner unter BACKUP_ROOT.
 # Alte Backups werden nach RETENTION_DAYS Tagen automatisch geloescht.
+#
+# ACHTUNG – enthaelt Secrets: Die .env-Datei (und ggf. private SSL-Schluessel)
+# landen unverschluesselt im Backup-Ordner. BACKUP_ROOT ist bereits per
+# .gitignore ausgeschlossen (nie committen!) - trotzdem Zugriffsrechte des
+# Backup-Ordners pruefen und Backups nur ueber einen sicheren Kanal
+# transportieren/ablegen (z. B. verschluesselt, restriktive Dateisystem-Rechte).
 #
 # ------------------------------------------------------------------------------
 # Aufruf (aus dem Projektverzeichnis, z. B. /opt/bandspirit):
@@ -68,12 +76,13 @@ if ! command -v docker >/dev/null 2>&1; then
 fi
 
 mkdir -p "$OUTDIR" || { echo "FEHLER: Backup-Ordner kann nicht erstellt werden."; exit 1; }
+chmod 700 "$OUTDIR"  # Backup enthaelt ab Schritt 3/4 Secrets (.env, ggf. private SSL-Schluessel).
 
 FEHLER=0
 
 # ── 1. PostgreSQL-Dump ───────────────────────────────────────────────────────
 echo ""
-echo "-> 1/2  PostgreSQL-Datenbank sichern (pg_dump) ..."
+echo "-> 1/4  PostgreSQL-Datenbank sichern (pg_dump) ..."
 if docker ps --format '{{.Names}}' | grep -qx "$PG_CONTAINER"; then
   DUMP_FILE="$OUTDIR/db_dump_${STAMP}.sql.gz"
   # Benutzer/DB werden aus den Container-Umgebungsvariablen gelesen -> keine
@@ -98,7 +107,7 @@ fi
 
 # ── 2. Docker-Volumes sichern ────────────────────────────────────────────────
 echo ""
-echo "-> 2/2  Docker-Volumes sichern ..."
+echo "-> 2/4  Docker-Volumes sichern ..."
 
 # Ermittelt den tatsaechlichen Volume-Namen anhand von Container + Mountpfad.
 resolve_volume() {
@@ -128,6 +137,40 @@ for spec in "${VOLUME_SPECS[@]}"; do
     echo "   FEHLER: Volume '$vol' ($out_name) konnte nicht gesichert werden."; FEHLER=1
   fi
 done
+
+# ── 3. SSL-Zertifikate sichern ───────────────────────────────────────────────
+echo ""
+echo "-> 3/4  SSL-Zertifikate sichern ..."
+SSL_SRC="$TARGET/docker/nginx/ssl"
+if [ -d "$SSL_SRC" ] && [ -n "$(ls -A "$SSL_SRC" 2>/dev/null)" ]; then
+  SSL_ARCHIVE="$OUTDIR/ssl-certs_${STAMP}.tar.gz"
+  if tar -czf "$SSL_ARCHIVE" -C "$SSL_SRC" . 2>"$OUTDIR/ssl.err"; then
+    chmod 600 "$SSL_ARCHIVE"
+    echo "   OK: $(basename "$SSL_ARCHIVE") ($(du -h "$SSL_ARCHIVE" | cut -f1))"
+    rm -f "$OUTDIR/ssl.err"
+  else
+    echo "   FEHLER: SSL-Zertifikate konnten nicht archiviert werden. Siehe $OUTDIR/ssl.err"; FEHLER=1
+  fi
+else
+  echo "   WARNUNG: '$SSL_SRC' fehlt oder ist leer – uebersprungen (kein Fehler, z. B. wenn noch kein SSL eingerichtet ist)."
+fi
+
+# ── 4. .env-Datei sichern ────────────────────────────────────────────────────
+echo ""
+echo "-> 4/4  .env-Datei sichern ..."
+ENV_SRC="$TARGET/.env"
+if [ -f "$ENV_SRC" ]; then
+  ENV_DEST="$OUTDIR/env_${STAMP}.backup"
+  if cp "$ENV_SRC" "$ENV_DEST" 2>"$OUTDIR/env.err"; then
+    chmod 600 "$ENV_DEST"
+    echo "   OK: $(basename "$ENV_DEST")  [enthaelt Secrets – Zugriffsrechte 600 gesetzt]"
+    rm -f "$OUTDIR/env.err"
+  else
+    echo "   FEHLER: .env konnte nicht kopiert werden. Siehe $OUTDIR/env.err"; FEHLER=1
+  fi
+else
+  echo "   WARNUNG: '$ENV_SRC' nicht gefunden – uebersprungen."
+fi
 
 # ── Manifest / Zusammenfassung ───────────────────────────────────────────────
 MANIFEST="$OUTDIR/manifest.txt"
