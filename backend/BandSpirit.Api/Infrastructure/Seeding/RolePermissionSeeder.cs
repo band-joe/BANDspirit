@@ -24,16 +24,18 @@ public static class RolePermissionSeeder
 
             // User – lesende Grundrechte.
             // Business-Entscheid: Spannungen (Drivers) darf jede Rolle erfassen UND
-            // anschauen koennen (DriverRead + DriverCreate) - das Abschliessen
-            // (Status -> ERLEDIGT) ist unabhaengig davon zusaetzlich auf den
-            // Lead-Link des jeweiligen Kreises beschraenkt (siehe
-            // DriversController.DarfSpannungAbschliessenAsync).
+            // anschauen koennen (DriverRead + DriverCreate); Bearbeiten/Abschliessen
+            // bleibt CircleAdmin/Admin vorbehalten (DriverUpdate, siehe
+            // DriversController). Tickets darf jede Rolle erstellen UND anschauen
+            // koennen (TicketCreate + TicketRead) - es gibt aktuell keinen
+            // "nur eigene Tickets"-Filter, TicketRead zeigt alle Tickets.
             ("User", new[]
             {
                 Permissions.CircleRead, Permissions.RoleRead, Permissions.MeetingRead,
                 Permissions.DriverRead, Permissions.DriverCreate, Permissions.DashboardRead,
                 Permissions.BiGuideRead, Permissions.FaqRead, Permissions.TicketCreate,
-                Permissions.DocsRead, Permissions.KpiRead, Permissions.OkrRead
+                Permissions.TicketRead, Permissions.DocsRead, Permissions.KpiRead,
+                Permissions.OkrRead
             })
         };
 
