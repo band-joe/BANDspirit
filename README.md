@@ -123,6 +123,19 @@ dotnet ef database update
 
 ## API-Überblick
 
+### Interaktive API-Dokumentation (Swagger / OpenAPI)
+
+- **Deeplink:** `/api/swagger` (bzw. `/api/swagger/v1/swagger.json` für das rohe
+  OpenAPI-Schema).
+- **Ohne Login aufrufbar:** Kein `[Authorize]` auf den Swagger-Endpunkten — das
+  API-Schema und die Swagger-UI sind ohne Berechtigungsprüfung erreichbar. Nur
+  die "Try it out"-Funktion einzelner Endpunkte braucht ein gültiges JWT
+  (über den 🔒-Authorize-Dialog in der UI einzutragen, siehe `POST
+  /api/auth/login`).
+- **Nur in `Development`/`Docker`-Umgebung aktiv** (`Program.cs`,
+  SEC-AUDIT-04) — in einer künftigen gehärteten Produktivumgebung bewusst
+  nicht mehr unauthentifiziert einsehbar.
+
 ### Authentifizierung (REST, kein OData)
 
 | Methode | Pfad | Beschreibung |
