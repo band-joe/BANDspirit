@@ -1,3 +1,4 @@
+using System.Security.Claims;
 using BandSpirit.Api.Infrastructure.Data;
 using BandSpirit.Api.Models;
 using Microsoft.AspNetCore.Authorization;
@@ -55,6 +56,17 @@ public class DriversController : ODataController
         return Created(eintrag);
     }
 
+    /// <summary>
+    /// PATCH /odata/Drivers({id}) – Treiber/Spannung aktualisieren.
+    /// </summary>
+    /// <remarks>
+    /// Business-Entscheid: Das Abschliessen einer Spannung (Statuswechsel auf
+    /// ERLEDIGT) ist zusätzlich zur allgemeinen "org:driver:update"-Berechtigung
+    /// nur dem/der Lead-Link des betroffenen Kreises (oder Admin) erlaubt - unabhängig
+    /// davon, welche Rolle sonst noch org:driver:update besitzt (z. B. CircleAdmin
+    /// über mehrere Kreise hinweg). Andere Feldänderungen bleiben unverändert nur
+    /// an die allgemeine Berechtigung geknüpft.
+    /// </remarks>
     [HttpPatch]
     [Authorize(Policy = Permissions.DriverUpdate)]
     public async Task<IActionResult> Patch([FromRoute] Guid key, [FromBody] Delta<S3Driver> delta)
@@ -64,9 +76,51 @@ public class DriversController : ODataController
         {
             return NotFound();
         }
+
+        var schliesstAb = delta.GetChangedPropertyNames().Contains(nameof(S3Driver.Status))
+            && delta.TryGetPropertyValue(nameof(S3Driver.Status), out var neuerStatusWert)
+            && neuerStatusWert is string neuerStatus
+            && neuerStatus == "ERLEDIGT"
+            && eintrag.Status != "ERLEDIGT";
+
+        if (schliesstAb && !await DarfSpannungAbschliessenAsync(eintrag.CircleId))
+        {
+            return Forbid();
+        }
+
         delta.Patch(eintrag);
         await _db.SaveChangesAsync();
         return Updated(eintrag);
+    }
+
+    /// <summary>
+    /// Prüft, ob der angemeldete Benutzer eine Spannung des angegebenen Kreises
+    /// abschliessen darf: Admin, oder Lead-Link (RollenDefinition.IsLeadLink)
+    /// dieses konkreten Kreises über eine aktive, gültige Rollenzuweisung.
+    /// </summary>
+    private async Task<bool> DarfSpannungAbschliessenAsync(Guid circleId)
+    {
+        var rolle = User.FindFirstValue(ClaimTypes.Role) ?? User.FindFirstValue("role");
+        if (rolle == BenutzerRollenNamen.Admin)
+        {
+            return true;
+        }
+
+        if (!Guid.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? User.FindFirstValue("sub"), out var userId))
+        {
+            return false;
+        }
+
+        var jetzt = DateTime.UtcNow;
+        return await _db.S3PersonRoleAssignments
+            .AsNoTracking()
+            .AnyAsync(pra => pra.UserId == userId
+                && pra.Role != null
+                && pra.Role.CircleId == circleId
+                && pra.Role.RollenDefinition != null
+                && pra.Role.RollenDefinition.IsLeadLink
+                && (pra.DateFrom == null || pra.DateFrom <= jetzt)
+                && (pra.DateTo == null || pra.DateTo >= jetzt));
     }
 
     [HttpDelete]

@@ -23,12 +23,17 @@ public static class RolePermissionSeeder
             ("Admin", Permissions.All),
 
             // User – lesende Grundrechte.
+            // Business-Entscheid: Spannungen (Drivers) darf jede Rolle erfassen UND
+            // anschauen koennen (DriverRead + DriverCreate) - das Abschliessen
+            // (Status -> ERLEDIGT) ist unabhaengig davon zusaetzlich auf den
+            // Lead-Link des jeweiligen Kreises beschraenkt (siehe
+            // DriversController.DarfSpannungAbschliessenAsync).
             ("User", new[]
             {
                 Permissions.CircleRead, Permissions.RoleRead, Permissions.MeetingRead,
-                Permissions.DriverRead, Permissions.DashboardRead, Permissions.BiGuideRead,
-                Permissions.FaqRead, Permissions.TicketCreate, Permissions.DocsRead,
-                Permissions.KpiRead, Permissions.OkrRead
+                Permissions.DriverRead, Permissions.DriverCreate, Permissions.DashboardRead,
+                Permissions.BiGuideRead, Permissions.FaqRead, Permissions.TicketCreate,
+                Permissions.DocsRead, Permissions.KpiRead, Permissions.OkrRead
             })
         };
 
