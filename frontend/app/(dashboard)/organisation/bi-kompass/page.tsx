@@ -128,6 +128,12 @@ function highlightChildren(children: ReactNode, term: string): ReactNode {
 // ──────────────────────────────────────────
 // Markdown → Chapters parser
 // ──────────────────────────────────────────
+// Kapitel-Card-Grenze ist die H1-Ebene ("# Titel", ein einzelnes Hauptkapitel
+// nach der Nummern-Tiefe aus dem PDF-Import, siehe PdfAlsMarkdown/KapitelMuster
+// im Backend: 1 Segment -> H1). Tiefere Überschriften ("## 1.1 ...", "### ...")
+// sind KEINE eigenen Card-Grenzen mehr, sondern bleiben als Markdown-
+// Unterüberschriften Teil des Inhalts der aktuellen Hauptkapitel-Card - genau
+// das war vorher das Problem: jedes Unterkapitel bekam eine eigene Card.
 function parseChapters(markdown: string): Chapter[] {
   if (!markdown) return [];
   const lines = markdown.split('\n');
@@ -135,6 +141,7 @@ function parseChapters(markdown: string): Chapter[] {
   let currentLines: string[] = [];
   let currentTitle = '';
   let currentNumber = 'header';
+  let sawTitle = false;
 
   const flush = () => {
     const content = currentLines.join('\n').trim();
@@ -155,12 +162,20 @@ function parseChapters(markdown: string): Chapter[] {
   };
 
   for (const line of lines) {
-    // Match ## headers (main chapters)
-    const h2Match = line.match(/^## (.+)$/);
-    if (h2Match) {
+    // Nur echte H1-Zeilen ("# ..."), keine H2+ ("## ...") - ein zweites "#"
+    // direkt danach schliesst die Zeile hier bewusst aus.
+    const h1Match = /^#(?!#)\s?(.*)$/.exec(line);
+    if (h1Match) {
+      const heading = h1Match[1].trim();
+      // Die allererste H1-Zeile im Dokument ist der Dokumenttitel (Header-
+      // Bereich), keine eigene Kapitel-Card.
+      if (!sawTitle) {
+        sawTitle = true;
+        currentTitle = heading;
+        continue;
+      }
       flush();
       currentLines = [];
-      const heading = h2Match[1].trim();
       if (/inhaltsverzeichnis/i.test(heading)) {
         currentTitle = 'Inhaltsverzeichnis';
         currentNumber = 'toc';
@@ -176,11 +191,6 @@ function parseChapters(markdown: string): Chapter[] {
       }
       continue;
     }
-    // Skip the main # title (it's in the header)
-    if (line.startsWith('# ') && chapters.length === 0 && currentLines.length === 0) {
-      currentTitle = line.replace(/^# /, '').trim();
-      continue;
-    }
     currentLines.push(line);
   }
   flush();
@@ -193,9 +203,9 @@ function reassembleMarkdown(chapters: Chapter[]): string {
       return `# ${ch.title}\n\n${ch.content}`;
     }
     if (ch.number === 'toc') {
-      return `## Inhaltsverzeichnis\n\n${ch.content}`;
+      return `# Inhaltsverzeichnis\n\n${ch.content}`;
     }
-    return `## ${ch.number}. ${ch.title}\n\n${ch.content}`;
+    return `# ${ch.number}. ${ch.title}\n\n${ch.content}`;
   }).join('\n\n---\n\n');
 }
 
