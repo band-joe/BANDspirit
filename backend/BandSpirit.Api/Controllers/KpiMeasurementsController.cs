@@ -10,7 +10,13 @@ using Microsoft.EntityFrameworkCore;
 using BandSpirit.Api.Infrastructure.Auth;
 namespace BandSpirit.Api.Controllers;
 
-/// <summary>OData-Controller für KPI-Messungen mit kreis-basierter Filterung. Route: /odata/KpiMeasurements</summary>
+/// <summary>
+/// OData-Controller für KPI-Messungen. Route: /odata/KpiMeasurements
+/// Business-Entscheid: Zugriff richtet sich ausschliesslich nach der Benutzerrolle
+/// (Permissions.KpiRead/KpiMeasure/KpiManage), nicht nach der Kreis-Zugehörigkeit
+/// (S3-Rollenzuweisung) - eine frühere zusätzliche Kreis-Scoping-Prüfung
+/// (CircleScope) wurde bewusst wieder entfernt.
+/// </summary>
 [Authorize]
 public class KpiMeasurementsController : ODataController
 {
@@ -23,51 +29,28 @@ public class KpiMeasurementsController : ODataController
         _kpiService = kpiService;
     }
 
-    /// <summary>Alle KPI-Messungen abrufen, gefiltert nach Kreis-Zugehörigkeit der KPI-Definition.</summary>
     [HttpGet]
     [EnableQuery(PageSize = 100)]
     [Authorize(Policy = Permissions.KpiRead)]
-    public IQueryable<KpiMeasurement> Get()
-    {
-        var userId = CircleScope.GetUserId(User);
-        var isAdmin = CircleScope.IsAdmin(User);
-        var userCircles = userId.HasValue ? CircleScope.UserCircleIds(_db, userId.Value) : Enumerable.Empty<Guid>().AsQueryable();
-
-        // Messungen filtern nach CircleId der zugehörigen KPI-Definition
-        return _db.KpiMeasurements
+    public IQueryable<KpiMeasurement> Get() =>
+        _db.KpiMeasurements
             .Include(m => m.KpiDefinition)
-                .ThenInclude(k => k!.Circle)
-            .Where(m => isAdmin || m.KpiDefinition!.CircleId == null || userCircles.Contains(m.KpiDefinition.CircleId.Value));
-    }
+                .ThenInclude(k => k!.Circle);
 
-    /// <summary>Eine einzelne KPI-Messung abrufen, kreis-gefiltert.</summary>
     [HttpGet]
     [EnableQuery]
     [Authorize(Policy = Permissions.KpiRead)]
     public async Task<IActionResult> Get([FromRoute] Guid key)
     {
-        var userId = CircleScope.GetUserId(User);
-        var isAdmin = CircleScope.IsAdmin(User);
-        var userCirclesList = userId.HasValue ? await CircleScope.UserCircleIds(_db, userId.Value).ToListAsync() : new List<Guid>();
-
         var eintrag = await _db.KpiMeasurements
             .Include(m => m.KpiDefinition)
                 .ThenInclude(k => k!.Circle)
             .FirstOrDefaultAsync(m => m.Id == key);
 
-        if (eintrag is null) return NotFound();
-
-        // Prüfen, ob User Zugriff auf den Kreis der KPI-Definition hat
-        var circleId = eintrag.KpiDefinition?.CircleId;
-        if (!isAdmin && circleId.HasValue && !userCirclesList.Contains(circleId.Value))
-        {
-            return Forbid();
-        }
-
-        return Ok(eintrag);
+        return eintrag is null ? NotFound() : Ok(eintrag);
     }
 
-    /// <summary>Neue KPI-Messung erstellen. Status wird automatisch berechnet. Kreis-Schreibrecht erforderlich.</summary>
+    /// <summary>Neue KPI-Messung erstellen. Status wird automatisch berechnet.</summary>
     [HttpPost]
     [Authorize(Policy = Permissions.KpiMeasure)]
     public async Task<IActionResult> Post([FromBody] KpiMeasurement eintrag)
@@ -77,7 +60,7 @@ public class KpiMeasurementsController : ODataController
             return BadRequest(ModelState);
         }
 
-        // KPI-Definition laden für Statusberechnung UND Berechtigungsprüfung
+        // KPI-Definition laden für Statusberechnung
         var definition = await _db.KpiDefinitions
             .Include(k => k.Circle)
             .FirstOrDefaultAsync(d => d.Id == eintrag.KpiDefinitionId);
@@ -85,12 +68,6 @@ public class KpiMeasurementsController : ODataController
         if (definition is null)
         {
             return BadRequest(new { error = "KpiDefinitionId ungültig." });
-        }
-
-        // Schreibrecht prüfen (Messung darf nur in Kreisen erfolgen, in denen User ist)
-        if (!CircleScope.CanWrite(_db, User, definition.CircleId))
-        {
-            return Forbid();
         }
 
         // Status automatisch anhand der Schwellenwerte berechnen
@@ -125,18 +102,12 @@ public class KpiMeasurementsController : ODataController
             return NotFound();
         }
 
-        // Schreibrecht prüfen
-        if (!CircleScope.CanWrite(_db, User, eintrag.KpiDefinition?.CircleId))
-        {
-            return Forbid();
-        }
-
         delta.Patch(eintrag);
         await _db.SaveChangesAsync();
         return Updated(eintrag);
     }
 
-    /// <summary>KPI-Messung löschen. Kreis-Schreibrecht erforderlich.</summary>
+    /// <summary>KPI-Messung löschen.</summary>
     [HttpDelete]
     [Authorize(Policy = Permissions.KpiManage)]
     public async Task<IActionResult> Delete([FromRoute] Guid key)
@@ -149,12 +120,6 @@ public class KpiMeasurementsController : ODataController
         if (eintrag is null)
         {
             return NotFound();
-        }
-
-        // Schreibrecht prüfen
-        if (!CircleScope.CanWrite(_db, User, eintrag.KpiDefinition?.CircleId))
-        {
-            return Forbid();
         }
 
         _db.KpiMeasurements.Remove(eintrag);
