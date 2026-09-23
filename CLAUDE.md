@@ -75,6 +75,10 @@ refuses to start (see the startup check in `Program.cs`).
   `S3LebenszyklusPhasen`, `S3CircleLebenszyklen`, plus the `Firma` singleton). OData query options
   (`$filter`, `$select`, `$expand`, `$orderby`, `$top`, `$skip`, `$count`) are enabled with
   `SetMaxTop(500)`.
+- **API documentation**: Swagger/OpenAPI UI at `/api/swagger` (raw schema at
+  `/api/swagger/v1/swagger.json`), enabled only in `Development`/`Docker` (SEC-AUDIT-04 in
+  `Program.cs`). Deliberately no `[Authorize]` on the Swagger endpoints themselves — browsing the schema
+  needs no login; only "Try it out" on individual endpoints needs a JWT via the Authorize dialog.
 - **Serialization split**: OData responses use `EnableLowerCamelCase()` (camelCase properties, PascalCase
   enum values e.g. `"Admin"`). Non-OData REST endpoints use `JsonNamingPolicy.CamelCase` configured
   separately in `AddJsonOptions`. Both must stay in sync with what the frontend expects — see the comment
