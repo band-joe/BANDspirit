@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef, Fragment, isValidElement, cloneElement, type ReactNode } from 'react';
 import { useSession } from 'next-auth/react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -34,6 +34,9 @@ import {
   Upload,
   Loader2,
   AlertCircle,
+  Search,
+  ChevronLeft,
+  ChevronRight,
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -89,6 +92,37 @@ const CHAPTER_COLORS: Record<string, { bg: string; border: string; accent: strin
 
 function getChapterColor(chapter: Chapter) {
   return CHAPTER_COLORS[chapter.number] || CHAPTER_COLORS['1'];
+}
+
+// ──────────────────────────────────────────
+// Suchtreffer in gerendertem Markdown hervorheben
+// ──────────────────────────────────────────
+function highlightText(text: string, term: string): ReactNode {
+  const idx = text.toLowerCase().indexOf(term);
+  if (idx === -1) return text;
+  const before = text.slice(0, idx);
+  const match = text.slice(idx, idx + term.length);
+  const after = text.slice(idx + term.length);
+  return (
+    <Fragment>
+      {before}
+      <mark className="bg-yellow-200 rounded px-0.5">{match}</mark>
+      {highlightText(after, term)}
+    </Fragment>
+  );
+}
+
+function highlightChildren(children: ReactNode, term: string): ReactNode {
+  if (!term) return children;
+  if (typeof children === 'string') return highlightText(children, term);
+  if (Array.isArray(children)) {
+    return children.map((child, i) => <Fragment key={i}>{highlightChildren(child, term)}</Fragment>);
+  }
+  if (isValidElement(children)) {
+    const props = children.props as { children?: ReactNode };
+    return cloneElement(children, undefined, highlightChildren(props.children, term));
+  }
+  return children;
 }
 
 // ──────────────────────────────────────────
@@ -201,8 +235,14 @@ export default function BIKompassPage() {
   const [publishAenderungen, setPublishAenderungen] = useState('');
   const [publishGueltigAb, setPublishGueltigAb] = useState('');
 
-  // Expanded chapters
+  // Auf-/Zuklappzustand je Kapitel-Card.
   const [collapsedChapters, setCollapsedChapters] = useState<Set<string>>(new Set());
+
+  // Volltextsuche über Kapiteltitel und -inhalt.
+  const [chapterSearch, setChapterSearch] = useState('');
+  // Welche der gefundenen Kapitel-Cards gerade per "Weiter/Zurück" anvisiert ist.
+  const [activeMatchIndex, setActiveMatchIndex] = useState(0);
+  const chapterRefs = useRef<Map<string, HTMLDivElement>>(new Map());
 
   // UI-26-Fix: Für die clientseitige Auflösung des Ersteller-Namens (kein
   // createdBy-Objekt vom Backend). Best effort - Betrachter ohne user:read
@@ -267,6 +307,64 @@ export default function BIKompassPage() {
       .catch(() => setUsers([]));
   }, [session]);
 
+  // Muss vor den bedingten Returns unten (Loading/Preview/Publish/…) stehen,
+  // sonst ändert sich die Hook-Reihenfolge zwischen Renders (Rules of Hooks)
+  // und React wirft "Rendered fewer hooks than expected".
+  const displayChapters = chapters.length > 0 ? chapters : originalChapters;
+  const headerChapter = displayChapters.find((c) => c.number === 'header');
+  const contentChapters = displayChapters.filter((c) => c.number !== 'header' && c.number !== 'toc');
+  const hasAktiveVersion = !!aktiveVersion;
+
+  // Volltextsuche: filtert Kapitel nach Titel/Inhalt (Titel und Nummer immer
+  // durchsuchbar, damit z.B. "3.2" oder ein Kapiteltitel direkt findbar ist).
+  const chapterSearchTerm = chapterSearch.trim().toLowerCase();
+  const visibleChapters = useMemo(() => {
+    if (!chapterSearchTerm) return contentChapters;
+    return contentChapters.filter(
+      (ch) =>
+        ch.title.toLowerCase().includes(chapterSearchTerm) ||
+        ch.number.toLowerCase().includes(chapterSearchTerm) ||
+        ch.content.toLowerCase().includes(chapterSearchTerm)
+    );
+  }, [contentChapters, chapterSearchTerm]);
+
+  // Bei neuem Suchbegriff wieder beim ersten Treffer beginnen.
+  useEffect(() => {
+    setActiveMatchIndex(0);
+  }, [chapterSearchTerm]);
+
+  const goToChapterMatch = (delta: number) => {
+    if (visibleChapters.length === 0) return;
+    const next = (activeMatchIndex + delta + visibleChapters.length) % visibleChapters.length;
+    setActiveMatchIndex(next);
+    chapterRefs.current.get(visibleChapters[next].id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
+
+  // Rendert Suchtreffer innerhalb der Kapitel-Cards gelb hervorgehoben; ohne
+  // aktive Suche wird kein Overhead durch zusätzliche Wrapper-Komponenten erzeugt.
+  const highlightComponents = useMemo(() => {
+    if (!chapterSearchTerm) return undefined;
+    const wrap = (Tag: keyof JSX.IntrinsicElements) =>
+      function HighlightWrapper({ children, ...rest }: { children?: ReactNode }) {
+        return <Tag {...rest}>{highlightChildren(children, chapterSearchTerm)}</Tag>;
+      };
+    return {
+      p: wrap('p'),
+      li: wrap('li'),
+      td: wrap('td'),
+      th: wrap('th'),
+      strong: wrap('strong'),
+      em: wrap('em'),
+      blockquote: wrap('blockquote'),
+      h1: wrap('h1'),
+      h2: wrap('h2'),
+      h3: wrap('h3'),
+      h4: wrap('h4'),
+      h5: wrap('h5'),
+      h6: wrap('h6'),
+    };
+  }, [chapterSearchTerm]);
+
   // ── Chapter editing ──────────────────────
   const startChapterEdit = (chapterId: string) => {
     const ch = chapters.find((c) => c.id === chapterId);
@@ -292,6 +390,15 @@ export default function BIKompassPage() {
     setEditingChapter(null);
     setEditBuffer('');
     setShowPreview(false);
+  };
+
+  const toggleCollapse = (chapterId: string) => {
+    setCollapsedChapters((prev) => {
+      const next = new Set(prev);
+      if (next.has(chapterId)) next.delete(chapterId);
+      else next.add(chapterId);
+      return next;
+    });
   };
 
   const discardAllChanges = () => {
@@ -437,15 +544,6 @@ export default function BIKompassPage() {
     }
     const found = versionen.find((v) => v.id === versionId);
     if (found) setPreviewVersion(found);
-  };
-
-  const toggleCollapse = (chapterId: string) => {
-    setCollapsedChapters((prev) => {
-      const next = new Set(prev);
-      if (next.has(chapterId)) next.delete(chapterId);
-      else next.add(chapterId);
-      return next;
-    });
   };
 
   // ── Loading ─────────────────────────────
@@ -611,20 +709,14 @@ export default function BIKompassPage() {
   // ══════════════════════════════════════════
   //  MAIN VIEW
   // ══════════════════════════════════════════
-  const displayChapters = chapters.length > 0 ? chapters : originalChapters;
-  const headerChapter = displayChapters.find((c) => c.number === 'header');
-  const contentChapters = displayChapters.filter((c) => c.number !== 'header' && c.number !== 'toc');
-  const tocChapter = displayChapters.find((c) => c.number === 'toc');
-  const hasAktiveVersion = !!aktiveVersion;
-
   return (
     <div className="p-6 max-w-5xl mx-auto space-y-6">
       {/* ── Hero header ────────────────────── */}
       <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-[#3e8f88]/10 via-teal-50 to-sky-50 border border-teal-200/60 p-8">
         <div className="absolute top-0 right-0 w-64 h-64 bg-[#3e8f88]/5 rounded-full -translate-y-1/2 translate-x-1/2" />
         <div className="relative">
-          <div className="flex items-start justify-between">
-            <div>
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+            <div className="min-w-0">
               <div className="flex items-center gap-3 mb-2">
                 <div className="p-2.5 rounded-xl bg-[#3e8f88]/15">
                   <Compass className="h-7 w-7 text-[#3e8f88]" />
@@ -654,7 +746,7 @@ export default function BIKompassPage() {
                 </div>
               )}
             </div>
-            <div className="flex flex-col items-end gap-2">
+            <div className="flex flex-col items-start gap-2 lg:items-end">
               {hasAktiveVersion && (
               <Button
                 variant="outline"
@@ -671,7 +763,7 @@ export default function BIKompassPage() {
               </Button>
               )}
               {canManage && (
-                <div className="flex items-center gap-1.5">
+                <div className="flex flex-wrap items-center gap-1.5">
                   <Button
                     variant="outline"
                     size="sm"
@@ -709,7 +801,7 @@ export default function BIKompassPage() {
                 </div>
               )}
               {canManage && hasChanges && (
-                <div className="flex items-center gap-1.5">
+                <div className="flex flex-wrap items-center gap-1.5">
                   <Button variant="outline" size="sm" onClick={discardAllChanges} className="bg-white/80 text-orange-600 hover:text-orange-700 border-orange-200">
                     <RotateCcw className="h-3.5 w-3.5 mr-1" /> Verwerfen
                   </Button>
@@ -860,39 +952,52 @@ export default function BIKompassPage() {
         </Card>
       )}
 
-      {/* ── Table of contents ──────────────── */}
-      {tocChapter && (
-        <Card className="bg-teal-50/50 border-teal-200/60 shadow-sm">
-          <CardHeader className="pb-2">
-            <div className="flex items-center justify-between">
-              <CardTitle className="text-base text-teal-800 flex items-center gap-2">
-                <BookOpen className="h-4 w-4 text-teal-600" /> Inhaltsverzeichnis
-              </CardTitle>
-              {canManage && (
-                <Button variant="ghost" size="sm" className="h-7 text-xs text-teal-600 hover:text-teal-800 hover:bg-teal-100" onClick={() => startChapterEdit('toc')}>
-                  <Edit className="h-3 w-3 mr-1" /> Bearbeiten
-                </Button>
-              )}
-            </div>
-          </CardHeader>
-          <CardContent>
-            {editingChapter === 'toc' ? (
-              <ChapterEditor
-                content={editBuffer}
-                onChange={setEditBuffer}
-                onSave={saveChapterEdit}
-                onCancel={cancelChapterEdit}
-                showPreview={showPreview}
-                onTogglePreview={() => setShowPreview(!showPreview)}
-              />
-            ) : (
-              <div
-                className="prose max-w-none prose-a:text-teal-700 prose-a:no-underline hover:prose-a:underline prose-li:text-teal-800 prose-headings:font-bold prose-headings:text-[16px] prose-p:text-[16px] prose-li:text-[16px] prose-a:text-[16px] [&>p]:whitespace-pre-line"
-                style={{ fontFamily: "'Aptos', 'Calibri', sans-serif", fontSize: '16px' }}
+      {/* ── Suche über Kapiteltitel und -inhalt ─── */}
+      {contentChapters.length > 0 && (
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="relative max-w-sm w-full">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Kapitel durchsuchen…"
+              value={chapterSearch}
+              onChange={(e) => setChapterSearch(e.target.value)}
+              className="pl-10 pr-9"
+            />
+            {chapterSearch && (
+              <button
+                type="button"
+                onClick={() => setChapterSearch('')}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                title="Suche zurücksetzen"
               >
-                <ReactMarkdown remarkPlugins={[remarkGfm]}>{tocChapter.content}</ReactMarkdown>
-              </div>
+                <X className="h-4 w-4" />
+              </button>
             )}
+          </div>
+          {chapterSearchTerm && visibleChapters.length > 0 && (
+            <div className="flex items-center gap-1 text-sm text-muted-foreground bg-muted/50 rounded-full pl-3 pr-1 py-1">
+              <span>
+                Kapitel {activeMatchIndex + 1} von {visibleChapters.length}
+              </span>
+              <Button variant="ghost" size="sm" className="h-6 w-6 p-0" onClick={() => goToChapterMatch(-1)} title="Voriges Kapitel">
+                <ChevronLeft className="h-4 w-4" />
+              </Button>
+              <Button variant="ghost" size="sm" className="h-6 w-6 p-0" onClick={() => goToChapterMatch(1)} title="Nächstes Kapitel">
+                <ChevronRight className="h-4 w-4" />
+              </Button>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── Keine Suchtreffer ─────────────────── */}
+      {chapterSearchTerm && visibleChapters.length === 0 && (
+        <Card>
+          <CardContent className="py-10 text-center">
+            <Search className="h-8 w-8 text-muted-foreground mx-auto mb-3" />
+            <p className="text-sm text-muted-foreground">
+              Keine Kapitel gefunden für „{chapterSearch}“.
+            </p>
           </CardContent>
         </Card>
       )}
@@ -933,14 +1038,23 @@ export default function BIKompassPage() {
         </Card>
       )}
 
-      {/* ── Chapters ───────────────────────── */}
-      {contentChapters.map((ch) => {
+      {/* ── Kapitel: eine Card pro Hauptkapitel, Unterkapitel (###-Ebene)      */}
+      {/*    sind Teil desselben Kapitel-Inhalts und damit derselben Card ───── */}
+      {visibleChapters.map((ch) => {
         const color = getChapterColor(ch);
-        const isCollapsed = collapsedChapters.has(ch.id);
+        // Bei aktiver Suche automatisch aufklappen, damit der Treffer sofort sichtbar ist.
+        const isCollapsed = chapterSearchTerm ? false : collapsedChapters.has(ch.id);
         const isEditing = editingChapter === ch.id;
 
         return (
-          <Card key={ch.id} className={`${color.bg} ${color.border} border shadow-sm transition-all duration-200 hover:shadow-md`}>
+          <Card
+            key={ch.id}
+            ref={(el) => {
+              if (el) chapterRefs.current.set(ch.id, el);
+              else chapterRefs.current.delete(ch.id);
+            }}
+            className={`${color.bg} ${color.border} border shadow-sm transition-all duration-200 hover:shadow-md`}
+          >
             <CardHeader className="pb-2">
               <div className="flex items-center justify-between">
                 <button
@@ -985,10 +1099,12 @@ export default function BIKompassPage() {
                   />
                 ) : (
                   <div
-                    className="prose max-w-none prose-headings:text-gray-800 prose-headings:font-bold prose-h1:text-[18.67px] prose-h2:text-[16px] prose-h3:text-[14.67px] prose-h4:text-[14.67px] prose-p:text-[14.67px] prose-li:text-[14.67px] prose-td:text-[14.67px] prose-th:text-[14.67px] prose-p:text-gray-700 prose-li:text-gray-700 prose-strong:text-gray-800 prose-blockquote:border-l-4 prose-blockquote:border-gray-300 prose-blockquote:bg-white/50 prose-blockquote:rounded-r-lg prose-blockquote:px-4 prose-blockquote:py-2 prose-table:border-collapse prose-th:bg-white/60 prose-th:border prose-th:border-gray-300 prose-th:px-3 prose-th:py-2 prose-td:border prose-td:border-gray-300 prose-td:px-3 prose-td:py-2 [&>p]:whitespace-pre-line"
+                    className="prose max-w-none prose-headings:text-gray-800 prose-headings:font-bold prose-h1:text-[14.67px] prose-h2:text-[14.67px] prose-h3:text-[14.67px] prose-h4:text-[14.67px] prose-h5:text-[14.67px] prose-h6:text-[14.67px] prose-p:text-[14.67px] prose-li:text-[14.67px] prose-td:text-[14.67px] prose-th:text-[14.67px] prose-p:text-gray-700 prose-li:text-gray-700 prose-strong:text-gray-800 prose-headings:mt-3 prose-headings:mb-1 prose-blockquote:border-l-4 prose-blockquote:border-gray-300 prose-blockquote:bg-white/50 prose-blockquote:rounded-r-lg prose-blockquote:px-4 prose-blockquote:py-2 prose-table:border-collapse prose-th:bg-white/60 prose-th:border prose-th:border-gray-300 prose-th:px-3 prose-th:py-2 prose-td:border prose-td:border-gray-300 prose-td:px-3 prose-td:py-2 [&>p]:whitespace-pre-line [&_*]:!text-[14.67px]"
                     style={{ fontFamily: "'Aptos', 'Calibri', sans-serif", fontSize: '14.67px' }}
                   >
-                    <ReactMarkdown remarkPlugins={[remarkGfm]}>{ch.content}</ReactMarkdown>
+                    <ReactMarkdown remarkPlugins={[remarkGfm]} components={highlightComponents}>
+                      {ch.content}
+                    </ReactMarkdown>
                   </div>
                 )}
               </CardContent>
