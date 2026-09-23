@@ -10,10 +10,14 @@
 # (nutzt die Container-eigenen Umgebungsvariablen).
 #
 # Fachlicher Hintergrund (siehe Commits 1c2395b/29e8bb2 im Branch
-# "berechtigungen"):
+# "berechtigungen" sowie der Ticket-Read-Fix hier im selben Branch):
 #   - Jede Rolle soll Spannungen erfassen UND anschauen können
 #     (org:driver:create + org:driver:read).
-#   - Jede Rolle soll Tickets erstellen können (ticket:create).
+#   - Jede Rolle soll Tickets erstellen UND anschauen können
+#     (ticket:create + ticket:read). Ohne ticket:read kann eine Rolle zwar
+#     Tickets anlegen, aber weder die eigenen Tickets noch die globale Suche
+#     (Hilfe & Support -> Suche) nutzen, da diese SupportTickets per OData
+#     abfragt.
 #   Betrifft die Basisrollen "User", "BiGuideAdmin", "Metriker" - "Admin" und
 #   "CircleAdmin" hatten diese Berechtigungen bereits.
 #
@@ -56,7 +60,7 @@ trap 'rm -rf "$TMP_DIR"' EXIT
 # ── SQL-Skripte lokal vorbereiten ────────────────────────────────────────────
 cat > "$TMP_DIR/before_after.sql" <<'EOF'
 SELECT "Role", "Permission" FROM "RolePermissions"
-WHERE "Permission" IN ('org:driver:read','org:driver:create','ticket:create')
+WHERE "Permission" IN ('org:driver:read','org:driver:create','ticket:create','ticket:read')
   AND "Role" IN ('User','BiGuideAdmin','Metriker')
 ORDER BY "Role", "Permission";
 EOF
@@ -68,12 +72,15 @@ INSERT INTO "RolePermissions" ("Id","Role","Permission","RoleId","CreatedAt","Up
 SELECT gen_random_uuid(), v.role, v.permission, br."Id", now(), now()
 FROM (VALUES
   ('User',         'org:driver:create'),
+  ('User',         'ticket:read'),
   ('BiGuideAdmin', 'org:driver:read'),
   ('BiGuideAdmin', 'org:driver:create'),
   ('BiGuideAdmin', 'ticket:create'),
+  ('BiGuideAdmin', 'ticket:read'),
   ('Metriker',     'org:driver:read'),
   ('Metriker',     'org:driver:create'),
-  ('Metriker',     'ticket:create')
+  ('Metriker',     'ticket:create'),
+  ('Metriker',     'ticket:read')
 ) AS v(role, permission)
 LEFT JOIN "BenutzerRollen" br ON br."Name" = v.role
 ON CONFLICT ("Role", "Permission") DO NOTHING;
