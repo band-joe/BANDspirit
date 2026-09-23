@@ -7,9 +7,16 @@
 #   1. PostgreSQL-Datenbank  <- aus db_dump_*.sql.gz (pg_restore via psql)
 #   2. Docker-Volumes        <- aus <name>_*.tar.gz
 #        (minio-data, redis-data, nginx-logs; postgres-data optional)
+#   3. SSL-Zertifikate       <- aus ssl-certs_*.tar.gz (optional, standardmaessig AUS)
+#   4. .env-Datei             <- aus env_*.backup (optional, standardmaessig AUS)
 #
 # ACHTUNG: Die Wiederherstellung UEBERSCHREIBT vorhandene Daten!
 #          Bitte vorher sicherstellen, dass das richtige Backup gewaehlt ist.
+#          SSL-Zertifikate/.env werden bewusst NUR mit expliziter Option
+#          zurueckgespielt (RESTORE_SSL=1 / RESTORE_ENV=1) - ein versehentliches
+#          Ueberschreiben der aktuell laufenden Secrets/Zertifikate mit einem
+#          alten Stand haette sonst zu leicht zu Login-/TLS-Ausfaellen fuehren
+#          koennen.
 #
 # ------------------------------------------------------------------------------
 # Aufruf (aus dem Projektverzeichnis):
@@ -18,11 +25,14 @@
 #
 # Beispiel:
 #   ./scripts/restore.sh ./backups/20260816_023000
+#   RESTORE_SSL=1 RESTORE_ENV=1 ./scripts/restore.sh ./backups/20260816_023000
 #
 # Standardmaessig werden DB-Dump + Objektspeicher (minio) wiederhergestellt.
 # Zusaetzliche Optionen (Umgebungsvariablen):
 #   RESTORE_VOLUMES="minio-data redis-data nginx-logs"   welche Volumes (Standard: minio-data)
 #   RESTORE_DB=1                                          DB-Dump einspielen (Standard: 1)
+#   RESTORE_SSL=0                                         SSL-Zertifikate einspielen (Standard: 0/aus)
+#   RESTORE_ENV=0                                         .env einspielen (Standard: 0/aus)
 #   TARGET=/pfad/zu/bandspirit                            Projektverzeichnis
 #
 # Hinweis: Das physische Volume 'postgres-data' wird bewusst NICHT standardmaessig
@@ -35,6 +45,8 @@ TARGET="${TARGET:-$(dirname "$SCRIPT_DIR")}"
 BACKUP_DIR="${1:-}"
 RESTORE_DB="${RESTORE_DB:-1}"
 RESTORE_VOLUMES="${RESTORE_VOLUMES:-minio-data}"
+RESTORE_SSL="${RESTORE_SSL:-0}"
+RESTORE_ENV="${RESTORE_ENV:-0}"
 
 PG_CONTAINER="bandspirit-postgres"
 
@@ -57,6 +69,8 @@ echo " BANDspirit – Wiederherstellung"
 echo " Backup-Ordner: $BACKUP_DIR"
 echo " DB einspielen: $([ "$RESTORE_DB" = "1" ] && echo ja || echo nein)"
 echo " Volumes:       $RESTORE_VOLUMES"
+echo " SSL-Zertifikate einspielen: $([ "$RESTORE_SSL" = "1" ] && echo ja || echo "nein (RESTORE_SSL=1 setzen)")"
+echo " .env einspielen:            $([ "$RESTORE_ENV" = "1" ] && echo ja || echo "nein (RESTORE_ENV=1 setzen)")"
 echo "=============================================================="
 echo ""
 echo " ACHTUNG: Vorhandene Daten werden ueberschrieben!"
@@ -128,6 +142,50 @@ for out_name in $RESTORE_VOLUMES; do
     echo "     FEHLER beim Entpacken."; FEHLER=1
   fi
 done
+
+# ── 3. SSL-Zertifikate wiederherstellen (opt-in) ─────────────────────────────
+if [ "$RESTORE_SSL" = "1" ]; then
+  echo ""
+  echo "-> SSL-Zertifikate wiederherstellen ..."
+  SSL_ARCHIVE="$(ls -1 "$BACKUP_DIR"/ssl-certs_*.tar.gz 2>/dev/null | head -n1)"
+  SSL_DEST="$TARGET/docker/nginx/ssl"
+  if [ -z "$SSL_ARCHIVE" ]; then
+    echo "   WARNUNG: Kein ssl-certs_*.tar.gz gefunden – uebersprungen."; FEHLER=1
+  else
+    mkdir -p "$SSL_DEST"
+    if tar -xzf "$SSL_ARCHIVE" -C "$SSL_DEST" 2>"$BACKUP_DIR/restore_ssl.err"; then
+      echo "   OK: $(basename "$SSL_ARCHIVE")  ->  $SSL_DEST"
+      echo "   Hinweis: nginx neu starten, damit die Zertifikate geladen werden (docker compose restart nginx)."
+      rm -f "$BACKUP_DIR/restore_ssl.err"
+    else
+      echo "   FEHLER beim Entpacken. Siehe $BACKUP_DIR/restore_ssl.err"; FEHLER=1
+    fi
+  fi
+fi
+
+# ── 4. .env wiederherstellen (opt-in) ────────────────────────────────────────
+if [ "$RESTORE_ENV" = "1" ]; then
+  echo ""
+  echo "-> .env wiederherstellen ..."
+  ENV_BACKUP="$(ls -1 "$BACKUP_DIR"/env_*.backup 2>/dev/null | head -n1)"
+  ENV_DEST="$TARGET/.env"
+  if [ -z "$ENV_BACKUP" ]; then
+    echo "   WARNUNG: Kein env_*.backup gefunden – uebersprungen."; FEHLER=1
+  else
+    if [ -f "$ENV_DEST" ]; then
+      cp "$ENV_DEST" "$ENV_DEST.vor-restore_${STAMP:-$(date +%Y%m%d_%H%M%S)}"
+      echo "   Vorhandene .env gesichert als $(basename "$ENV_DEST").vor-restore_*"
+    fi
+    if cp "$ENV_BACKUP" "$ENV_DEST" 2>"$BACKUP_DIR/restore_env.err"; then
+      chmod 600 "$ENV_DEST"
+      echo "   OK: $(basename "$ENV_BACKUP")  ->  $ENV_DEST"
+      echo "   Hinweis: betroffene Container neu starten, damit die Werte geladen werden (docker compose up -d)."
+      rm -f "$BACKUP_DIR/restore_env.err"
+    else
+      echo "   FEHLER beim Kopieren. Siehe $BACKUP_DIR/restore_env.err"; FEHLER=1
+    fi
+  fi
+fi
 
 echo ""
 echo "=============================================================="
