@@ -116,7 +116,7 @@ export default function OrganisationPage() {
 
   // New driver dialog
   const [driverDialogOpen, setDriverDialogOpen] = useState(false);
-  const [driverForm, setDriverForm] = useState({ title: '', description: '', priority: 'MITTEL', circleId: '' });
+  const [driverForm, setDriverForm] = useState({ titel: '', beschreibung: '', prioritaet: 'MITTEL', circleId: '' });
   const [driverSaving, setDriverSaving] = useState(false);
 
   // Mitglieder-&-Rollen-Modal (pro Kreis)
@@ -268,6 +268,15 @@ export default function OrganisationPage() {
     }
   }, [session]);
 
+  // Ersteller-Namen der Spannungen werden clientseitig über die Users-Liste
+  // aufgelöst (kein Creator-Navigationsfeld im Backend-Modell) - daher auch
+  // beim Spannungen-Tab laden, nicht nur im 'users'-Suchmodus.
+  useEffect(() => {
+    if (activeTab === 'drivers' && !usersLoaded) {
+      loadUsers();
+    }
+  }, [activeTab, usersLoaded, loadUsers]);
+
   // Benutzer erst laden, wenn in den Benutzer-Suchmodus gewechselt wird.
   useEffect(() => {
     if (searchMode === 'users' && !usersLoaded) {
@@ -331,7 +340,7 @@ export default function OrganisationPage() {
   }, [session, profilUserId, profil?.portraetPfad]);
 
   const handleCreateDriver = async () => {
-    if (!driverForm.title.trim() || !driverForm.circleId) {
+    if (!driverForm.titel.trim() || !driverForm.circleId) {
       toast.error('Titel und Kreis sind erforderlich');
       return;
     }
@@ -341,7 +350,7 @@ export default function OrganisationPage() {
       await apiClient.post('/odata/Drivers', driverForm, session);
       toast.success('Spannung erstellt');
       setDriverDialogOpen(false);
-      setDriverForm({ title: '', description: '', priority: 'MITTEL', circleId: '' });
+      setDriverForm({ titel: '', beschreibung: '', prioritaet: 'MITTEL', circleId: '' });
       loadDrivers();
     } catch (error: unknown) {
       const msg = error instanceof ApiError ? (error.message || 'Fehler beim Erstellen') : 'Fehler beim Erstellen der Spannung';
@@ -599,12 +608,12 @@ export default function OrganisationPage() {
   // Driver filtering
   const filteredDrivers = drivers.filter(d => {
     if (driverStatusFilter !== 'all' && d.status !== driverStatusFilter) return false;
-    if (driverPriorityFilter !== 'all' && d.priority !== driverPriorityFilter) return false;
+    if (driverPriorityFilter !== 'all' && d.prioritaet !== driverPriorityFilter) return false;
     if (driverSearch) {
       const s = driverSearch.toLowerCase();
       return (
-        d.title.toLowerCase().includes(s) ||
-        (d.description && d.description.toLowerCase().includes(s)) ||
+        d.titel.toLowerCase().includes(s) ||
+        (d.beschreibung && d.beschreibung.toLowerCase().includes(s)) ||
         d.circle.name.toLowerCase().includes(s)
       );
     }
@@ -638,16 +647,16 @@ export default function OrganisationPage() {
                   <div>
                     <Label>Titel *</Label>
                     <Input
-                      value={driverForm.title}
-                      onChange={e => setDriverForm(f => ({ ...f, title: e.target.value }))}
+                      value={driverForm.titel}
+                      onChange={e => setDriverForm(f => ({ ...f, titel: e.target.value }))}
                       placeholder="Was ist die Spannung?"
                     />
                   </div>
                   <div>
                     <Label>Beschreibung</Label>
                     <Textarea
-                      value={driverForm.description}
-                      onChange={e => setDriverForm(f => ({ ...f, description: e.target.value }))}
+                      value={driverForm.beschreibung}
+                      onChange={e => setDriverForm(f => ({ ...f, beschreibung: e.target.value }))}
                       placeholder="Detaillierte Beschreibung…"
                       rows={3}
                     />
@@ -665,7 +674,7 @@ export default function OrganisationPage() {
                   </div>
                   <div>
                     <Label>Priorität</Label>
-                    <Select value={driverForm.priority} onValueChange={v => setDriverForm(f => ({ ...f, priority: v }))}>
+                    <Select value={driverForm.prioritaet} onValueChange={v => setDriverForm(f => ({ ...f, prioritaet: v }))}>
                       <SelectTrigger><SelectValue /></SelectTrigger>
                       <SelectContent>
                         <SelectItem value="NIEDRIG">Niedrig</SelectItem>
@@ -1059,8 +1068,9 @@ export default function OrganisationPage() {
           ) : (
             <div className="grid gap-3">
               {filteredDrivers.map((driver, idx) => {
-                const prio = PRIORITY_CONFIG[driver.priority] || PRIORITY_CONFIG.MITTEL;
+                const prio = PRIORITY_CONFIG[driver.prioritaet] || PRIORITY_CONFIG.MITTEL;
                 const stat = STATUS_CONFIG[driver.status] || STATUS_CONFIG.OFFEN;
+                const erstellerName = users.find(u => u.id === driver.createdById)?.name ?? 'Unbekannt';
                 return (
                   <motion.div
                     key={driver.id}
@@ -1078,7 +1088,7 @@ export default function OrganisationPage() {
                               </div>
                               <div className="min-w-0 flex-1">
                                 <div className="flex items-center gap-2 flex-wrap">
-                                  <h3 className="font-semibold">{driver.title}</h3>
+                                  <h3 className="font-semibold">{driver.titel}</h3>
                                   <Badge className={`text-xs ${prio.color}`}>{prio.label}</Badge>
                                   <Badge className={`text-xs ${stat.color}`}>{stat.label}</Badge>
                                   {driver.workItems && driver.workItems.length > 0 && (
@@ -1087,8 +1097,8 @@ export default function OrganisationPage() {
                                     </Badge>
                                   )}
                                 </div>
-                                {driver.description && (
-                                  <p className="text-sm text-muted-foreground mt-1 line-clamp-2">{driver.description}</p>
+                                {driver.beschreibung && (
+                                  <p className="text-sm text-muted-foreground mt-1 line-clamp-2">{driver.beschreibung}</p>
                                 )}
                                 <div className="flex items-center gap-4 mt-2 text-xs text-muted-foreground">
                                   <span
@@ -1097,7 +1107,7 @@ export default function OrganisationPage() {
                                   >
                                     <CircleDot className="h-3 w-3" /> {driver.circle.name}
                                   </span>
-                                  <span>von {driver.creator.name}</span>
+                                  <span>von {erstellerName}</span>
                                   <span>{new Date(driver.createdAt).toLocaleDateString('de-CH')}</span>
                                 </div>
                               </div>

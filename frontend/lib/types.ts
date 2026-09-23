@@ -282,17 +282,23 @@ export interface CircleListItem {
   createdAt: string;
 }
 
-/** Spannungs-/Treiber-Listenelement für die Organisations-Übersichtsseite */
+/**
+ * Spannungs-/Treiber-Listenelement für die Organisations-Übersichtsseite.
+ * Feldnamen entsprechen 1:1 dem Backend-Modell S3Driver (Titel/Beschreibung/
+ * Prioritaet) - kein "Creator"-Navigationsfeld auf S3Driver, nur die rohe
+ * createdById; Name wird clientseitig über die Users-Liste aufgelöst (analog
+ * zu organisation/spannungen/[id]/page.tsx).
+ */
 export interface DriverListItem {
-  id:          string;
-  title:       string;
-  description: string | null;
-  status:      string;
-  priority:    string;
-  circle:      { id: string; name: string };
-  creator:     { id: string; name: string };
-  createdAt:   string;
-  workItems?:  { id: string; status: string }[];
+  id:            string;
+  titel:         string;
+  beschreibung:  string | null;
+  status:        string;
+  prioritaet:    string;
+  circle:        { id: string; name: string };
+  createdById:   string | null;
+  createdAt:     string;
+  workItems?:    { id: string; status: string }[];
 }
 
 /** Benutzer-Suche in der Organisation */
