@@ -93,6 +93,28 @@ public class BiKompassUploadController : ControllerBase
         RegexOptions.Compiled);
 
     /// <summary>
+    /// Erkennt Inhaltsverzeichnis-Zeilen: eine Kapitel-Nummerierung wie
+    /// <see cref="KapitelMuster"/>, deren Titel mit Füllpunkten ("....") und
+    /// einer abschließenden Seitenzahl endet (typisches ToC-Layout, z. B.
+    /// "1.1 Zweck und Geltungsbereich .......................... 3"). Echte
+    /// Kapitelüberschriften im Fliesstext enden nicht so - dieses Muster
+    /// verhindert, dass ein Inhaltsverzeichnis beim Import als eigene
+    /// Kapitel-Überschriften (mit eigenen Kapitel-Cards) fehlinterpretiert wird.
+    /// </summary>
+    private static readonly Regex ToCZeilenMuster = new(
+        @"\.{3,}\s*\d+\s*$",
+        RegexOptions.Compiled);
+
+    /// <summary>
+    /// Erkennt wiederkehrende Seiten-Fusszeilen im Format "... Seite X von Y"
+    /// (Standard-Fusszeile von Word-Exporten), die sonst auf jeder Seite
+    /// erneut als Fliesstext mitten im Kapitel-Inhalt auftauchen würden.
+    /// </summary>
+    private static readonly Regex SeitenFusszeileMuster = new(
+        @"Seite\s+\d+\s+von\s+\d+\s*$",
+        RegexOptions.Compiled | RegexOptions.IgnoreCase);
+
+    /// <summary>
     /// POST /api/bi-kompass/upload – Nimmt eine PDF-Datei (Feld <c>file</c>,
     /// multipart/form-data) entgegen, extrahiert den Text und liefert ihn als
     /// Markdown mit erkannter Kapitelstruktur zurück.
@@ -175,6 +197,21 @@ public class BiKompassUploadController : ControllerBase
                 if (string.IsNullOrWhiteSpace(zeile))
                 {
                     ausgabe.AppendLine();
+                    continue;
+                }
+
+                // Wiederkehrende Seiten-Fusszeile: komplett überspringen, statt sie
+                // als Fliesstext mitten in ein Kapitel zu übernehmen.
+                if (SeitenFusszeileMuster.IsMatch(zeile))
+                {
+                    continue;
+                }
+
+                // Inhaltsverzeichnis-Zeile: überspringen statt als (falsche)
+                // Kapitel-Überschrift zu übernehmen - der Inhalt ist ohnehin
+                // redundant zu den echten Überschriften weiter unten im Dokument.
+                if (KapitelMuster.IsMatch(zeile) && ToCZeilenMuster.IsMatch(zeile))
+                {
                     continue;
                 }
 
