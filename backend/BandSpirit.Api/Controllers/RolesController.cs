@@ -56,6 +56,12 @@ public class RolesController : ODataController
             return BadRequest(ModelState);
         }
 
+        var referenzFehler = await PruefeReferenzenAsync(eintrag);
+        if (referenzFehler is not null)
+        {
+            return BadRequest(new { fehler = referenzFehler });
+        }
+
         // Eine Rolle (Vorlage) darf pro Kreis nur EINMAL zugeordnet werden.
         // DB-03: Dieser Check allein schützt nicht vor zwei gleichzeitigen
         // Requests (TOCTOU) - der Composite-Unique-Index (BandSpiritDbContext)
@@ -98,6 +104,12 @@ public class RolesController : ODataController
         }
         delta.Patch(eintrag);
 
+        var referenzFehler = await PruefeReferenzenAsync(eintrag);
+        if (referenzFehler is not null)
+        {
+            return BadRequest(new { fehler = referenzFehler });
+        }
+
         var kollidiertMitAnderer = await _db.S3Roles.AnyAsync(
             r => r.Id != key && r.CircleId == eintrag.CircleId && r.RollenDefinitionId == eintrag.RollenDefinitionId);
         if (kollidiertMitAnderer)
@@ -114,6 +126,25 @@ public class RolesController : ODataController
             return Conflict(new { fehler = "Diese Rolle ist in diesem Kreis bereits vorhanden. Eine Rollen-Vorlage kann pro Kreis nur einmal zugeordnet werden." });
         }
         return Updated(eintrag);
+    }
+
+    /// <summary>
+    /// Prüft, ob Kreis und Rollen-Vorlage existieren. Ohne diese Prüfung
+    /// scheiterte das Speichern an der Fremdschlüssel-Constraint und die API
+    /// antwortete mit 500 statt mit einer verständlichen Meldung.
+    /// </summary>
+    private async Task<string?> PruefeReferenzenAsync(S3Role eintrag)
+    {
+        if (eintrag.CircleId == Guid.Empty || !await _db.S3Circles.AnyAsync(c => c.Id == eintrag.CircleId))
+        {
+            return "Der Kreis der Rolle fehlt oder existiert nicht.";
+        }
+        if (eintrag.RollenDefinitionId == Guid.Empty
+            || !await _db.S3RollenDefinitionen.AnyAsync(d => d.Id == eintrag.RollenDefinitionId))
+        {
+            return "Die Rollen-Vorlage fehlt oder existiert nicht.";
+        }
+        return null;
     }
 
     /// <summary>Erkennt eine PostgreSQL-Unique-Constraint-Verletzung (SQLSTATE 23505).</summary>
