@@ -22,3 +22,11 @@ backups/
 scripts/*.sql
 migration/*.sql
 migration/*.sql.gz
+
+# Umgebungsspezifische Konfiguration (z. B. Testumgebung Proxmox) - bleibt
+# auf dem jeweiligen System, siehe README "Deployment".
+docker-compose.override.yml
+docker/nginx/nginx.*.conf
+
+# TLS-Zertifikate und private Schlüssel
+docker/nginx/ssl/*
