@@ -105,6 +105,17 @@ weder entwickelt noch gepusht.
 3. `origin` setzen:
    `git remote set-url origin git@gitlab.bi-infra.band.local:bi-inf/apps/bandspirit/bandspirit.git`
 4. `.env` darf nicht von Git verfolgt werden: `git rm --cached .env .env.bak`
+5. Umgebungsspezifisches nicht in versionierten Dateien ändern, sondern
+   auslagern (alles per `.gitignore` ausgeschlossen):
+   - eigene nginx-Konfiguration als `docker/nginx/nginx.<umgebung>.conf`,
+     eingebunden über eine `docker-compose.override.yml` (lädt Compose automatisch):
+     ```yaml
+     services:
+       nginx:
+         volumes:
+           - ./docker/nginx/nginx.test.conf:/etc/nginx/nginx.conf:ro
+     ```
+   - TLS-Zertifikat und -Schlüssel unter `docker/nginx/ssl/`
 
 **Update einspielen:**
 
