@@ -12,7 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
-import { hasPermission } from '@/lib/rbac';
+import { usePermissions } from '@/hooks/use-permissions';
 import { apiClient } from '@/lib/api-client';
 import { ODataResponse } from '@/lib/odata';
 import { ApiError } from '@/lib/errors';
@@ -50,8 +50,9 @@ export default function BIGuidePage() {
   const { data: session } = useSession() || {};
   const searchParams = useSearchParams();
   const role = (session?.user as any)?.role ?? '';
+  const { can } = usePermissions();
   const userId = (session?.user as any)?.id ?? '';
-  const canManage = hasPermission(role, 'biguide:manage');
+  const canManage = can('biguide:manage');
 
   const [news, setNews] = useState<BIGuideNews[]>([]);
   const [kategorien, setKategorien] = useState<BiGuideKategorie[]>([]);

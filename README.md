@@ -196,7 +196,11 @@ OData-Actions: `Proposals({id})/Decide`, `Roles({id})/Assign`,
 - **RBAC:** Berechtigungen werden aus der Tabelle `RolePermission` gelesen
   (Fallback: hartkodiert, Cache 60 s). Benutzerrollen werden als eigene Entität
   (`BenutzerRolle`) gepflegt (Einstellungen → Benutzerrollen); Standardrollen:
-  `Admin`, `User`.
+  `Admin`, `User`. Weitere Rollen im Betrieb: `CircleAdmin` (Lead Link, u. a.
+  Kreise und Kreisrollen bewirtschaften), `BiGuideAdmin` (BI-Guide sehen und
+  verwalten, BI-Kompass bewirtschaften), `Metriker`. Den BI-Kompass lesen alle
+  Rollen (`bikompass:read`). Auf bestehenden Installationen gleicht
+  `scripts/fix-role-permissions.sh` die RolePermissions an.
 - **Rate-Limiting:** Auth 5 Anfragen/60 s, API 100 Anfragen/10 s.
 - **Security-Header:** `X-Content-Type-Options`, `Referrer-Policy`,
   `Permissions-Policy`, `Strict-Transport-Security`.

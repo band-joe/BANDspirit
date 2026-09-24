@@ -15,6 +15,7 @@ import {
 import { toast } from 'sonner';
 import { UserCog, Plus, Search, Shield, Mail, UserCheck, UserX, Link2, Pencil } from 'lucide-react';
 import { hasPermission, getRoleLabel } from '@/lib/rbac';
+import { usePermissions } from '@/hooks/use-permissions';
 import { apiClient } from '@/lib/api-client';
 
 interface UserEntry {
@@ -45,6 +46,7 @@ function roleBadgeClass(role: string): string {
 export default function BenutzerPage() {
   const { data: session } = useSession() || {};
   const role = (session?.user as any)?.role;
+  const { can } = usePermissions();
   const currentUserId = (session?.user as any)?.id;
   const [users, setUsers] = useState<UserEntry[]>([]);
   const [rollen, setRollen] = useState<BenutzerRolleOption[]>([]);
@@ -123,7 +125,7 @@ export default function BenutzerPage() {
             {users.length} Benutzer insgesamt · {users.filter(u => u.aktiv).length} aktiv
           </p>
         </div>
-        {hasPermission(role, 'user:create') && (
+        {can('user:create') && (
           <Link href="/benutzer/neu">
             <Button>
               <Plus className="mr-2 h-4 w-4" />
@@ -237,7 +239,7 @@ export default function BenutzerPage() {
                               <Pencil className="h-4 w-4" />
                             </Button>
                           </Link>
-                          {hasPermission(role, 'user:update') && u.id !== currentUserId && (
+                          {can('user:update') && u.id !== currentUserId && (
                             <Button
                               variant="ghost"
                               size="icon"

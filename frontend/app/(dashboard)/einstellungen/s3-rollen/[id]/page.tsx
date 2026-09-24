@@ -23,7 +23,7 @@ import {
   ArrowLeft, Star, Plus, Pencil, Trash2, Save, Upload, Download, FileText,
   Target, ClipboardList,
 } from 'lucide-react';
-import { hasPermission } from '@/lib/rbac';
+import { usePermissions } from '@/hooks/use-permissions';
 import { apiClient, getToken } from '@/lib/api-client';
 import { ODataResponse } from '@/lib/odata';
 import { ApiError } from '@/lib/errors';
@@ -66,12 +66,12 @@ function fromDateInput(value: string): string | null {
 
 export default function RollenDefinitionDetailPage() {
   const { data: session } = useSession() || {};
-  const role = (session?.user as Record<string, unknown>)?.role as string ?? '';
+  const { can } = usePermissions();
   const params = useParams();
   const router = useRouter();
   const definitionId = params.id as string;
 
-  const canUpdate = hasPermission(role, 'stammdaten:manage');
+  const canUpdate = can('stammdaten:manage');
 
   const [rDef, setRDef] = useState<Record<string, any> | null>(null);
   const [loading, setLoading] = useState(true);

@@ -9,7 +9,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { toast } from 'sonner';
-import { hasPermission } from '@/lib/rbac';
+import { usePermissions } from '@/hooks/use-permissions';
 import { formatDate } from '@/lib/utils';
 import { apiClient, getToken } from '@/lib/api-client';
 import { ODataResponse } from '@/lib/odata';
@@ -260,9 +260,8 @@ export default function BIKompassPage() {
   const [users, setUsers] = useState<{ id: string; name: string }[]>([]);
   const erstellerName = (createdById: string | null) =>
     users.find((u) => u.id === createdById)?.name ?? 'Unbekannt';
-
-  const userRole = (session?.user as { role?: string })?.role;
-  const canManage = userRole ? hasPermission(userRole, 'biguide:manage') : false;
+  const { can } = usePermissions();
+  const canManage = can('bikompass:manage');
 
   // Parse chapters from active version
   const originalChapters = useMemo(() => {

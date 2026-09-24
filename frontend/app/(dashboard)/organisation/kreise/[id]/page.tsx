@@ -20,7 +20,7 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
-import { hasPermission } from '@/lib/rbac';
+import { usePermissions } from '@/hooks/use-permissions';
 import { apiClient } from '@/lib/api-client';
 import { ODataResponse } from '@/lib/odata';
 import { ApiError } from '@/lib/errors';
@@ -127,6 +127,7 @@ function HistorieTab({ circleId, session }: { circleId: string; session: any }) 
 export default function KreisDetailPage() {
   const { data: session } = useSession() || {};
   const role = (session?.user as Record<string, unknown>)?.role as string ?? '';
+  const { can } = usePermissions();
   const params = useParams();
   const router = useRouter();
   const [circle, setCircle] = useState<Record<string, unknown> | null>(null);
@@ -519,7 +520,7 @@ export default function KreisDetailPage() {
           {c.purpose ? <p className="text-muted-foreground mt-1">Zweck: {stripHtml(String(c.purpose))}</p> : null}
           {c.verantwortlichkeit ? <p className="text-muted-foreground mt-1">Verantwortlich für: {stripHtml(String(c.verantwortlichkeit))}</p> : null}
         </div>
-        {hasPermission(role, 'org:circle:update') && (
+        {can('org:circle:update') && (
           <Button variant="outline" onClick={() => setEditing(!editing)}>
             <Pencil className="h-4 w-4 mr-2" />{editing ? 'Abbrechen' : 'Bearbeiten'}
           </Button>
@@ -632,7 +633,7 @@ export default function KreisDetailPage() {
           <div className="flex justify-between items-center">
             <h3 className="text-lg font-semibold">Rollen im Kreis</h3>
             <div className="flex gap-2">
-              {hasPermission(role, 'org:role:assign') && (
+              {can('org:role:assign') && (
                 <Dialog open={assignDialogOpen} onOpenChange={setAssignDialogOpen}>
                   <DialogTrigger asChild><Button variant="outline" size="sm"><UserPlus className="h-4 w-4 mr-2" />Zuweisen</Button></DialogTrigger>
                   <DialogContent>
@@ -657,7 +658,7 @@ export default function KreisDetailPage() {
                   </DialogContent>
                 </Dialog>
               )}
-              {hasPermission(role, 'org:role:create') && (
+              {can('org:role:create') && (
                 <Dialog open={roleDialogOpen} onOpenChange={setRoleDialogOpen}>
                   <DialogTrigger asChild><Button size="sm"><Plus className="h-4 w-4 mr-2" />Neue Rolle</Button></DialogTrigger>
                   <DialogContent className="max-w-lg">
@@ -732,7 +733,7 @@ export default function KreisDetailPage() {
                               ) : assignments.map(a => (
                                 <div key={a.user.id} className="flex items-center gap-1 rounded-full bg-secondary pl-2.5 pr-1 py-0.5">
                                   <span className="text-xs">{a.user.name}</span>
-                                  {hasPermission(role, 'org:role:unassign') && (
+                                  {can('org:role:unassign') && (
                                     <AlertDialog>
                                       <AlertDialogTrigger asChild>
                                         <button
@@ -760,7 +761,7 @@ export default function KreisDetailPage() {
                             </div>
                           </div>
                           {/* Rolle deaktivieren (DB-15: kein Hard-Delete) */}
-                          {hasPermission(role, 'org:role:update') && (
+                          {can('org:role:update') && (
                             <AlertDialog>
                               <AlertDialogTrigger asChild>
                                 <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10" title="Rolle deaktivieren">
@@ -797,7 +798,7 @@ export default function KreisDetailPage() {
         <TabsContent value="meetings" className="space-y-4">
           <div className="flex justify-between items-center">
             <h3 className="text-lg font-semibold">Meetings</h3>
-            {hasPermission(role, 'org:meeting:create') && (
+            {can('org:meeting:create') && (
               <Dialog open={meetingDialogOpen} onOpenChange={setMeetingDialogOpen}>
                 <DialogTrigger asChild><Button size="sm"><Plus className="h-4 w-4 mr-2" />Neues Meeting</Button></DialogTrigger>
                 <DialogContent>
@@ -859,7 +860,7 @@ export default function KreisDetailPage() {
         <TabsContent value="drivers" className="space-y-4">
           <div className="flex justify-between items-center">
             <h3 className="text-lg font-semibold">Governance Backlog (Spannungen)</h3>
-            {hasPermission(role, 'org:driver:create') && (
+            {can('org:driver:create') && (
               <Dialog open={driverDialogOpen} onOpenChange={setDriverDialogOpen}>
                 <DialogTrigger asChild><Button size="sm"><Plus className="h-4 w-4 mr-2" />Neue Spannung</Button></DialogTrigger>
                 <DialogContent>
@@ -944,7 +945,7 @@ export default function KreisDetailPage() {
         <TabsContent value="subcircles" className="space-y-4">
           <div className="flex justify-between items-center">
             <h3 className="text-lg font-semibold">Subkreise</h3>
-            {hasPermission(role, 'org:circle:create') && (
+            {can('org:circle:create') && (
               <Link href={`/organisation/kreise/neu?parentId=${params.id}`}>
                 <Button size="sm"><Plus className="h-4 w-4 mr-2" />Subkreis erstellen</Button>
               </Link>
@@ -1183,9 +1184,10 @@ function KennzahlenZieleTab({
   role: string;
   session: ReturnType<typeof useSession>['data'];
 }) {
-  const canKpiManage = hasPermission(role, 'kpi:manage');
-  const canKpiMeasure = hasPermission(role, 'kpi:measure');
-  const canOkrManage = hasPermission(role, 'okr:manage');
+  const { can } = usePermissions();
+  const canKpiManage = can('kpi:manage');
+  const canKpiMeasure = can('kpi:measure');
+  const canOkrManage = can('okr:manage');
 
   const [kpis, setKpis] = useState<KpiCircleItem[]>([]);
   const [okrs, setOkrs] = useState<OkrCircleItem[]>([]);

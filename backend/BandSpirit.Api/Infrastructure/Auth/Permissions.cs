@@ -39,9 +39,11 @@ public static class Permissions
     public const string DriverCreate = "org:driver:create";
     public const string DriverUpdate = "org:driver:update";
 
-    // BI-Guide / BI-Kompass
+    // BI-Guide (nur Rolle BiGuideAdmin) / BI-Kompass (lesen: alle Rollen, bewirtschaften: BiGuideAdmin)
     public const string BiGuideRead = "biguide:read";
     public const string BiGuideManage = "biguide:manage";
+    public const string BiKompassRead = "bikompass:read";
+    public const string BiKompassManage = "bikompass:manage";
 
     // Support / FAQ
     public const string TicketCreate = "ticket:create";
@@ -74,7 +76,7 @@ public static class Permissions
         MeetingRead, MeetingCreate,
         ProposalCreate, ObjectionCreate, ObjectionUpdate, DecisionCreate,
         DriverRead, DriverCreate, DriverUpdate,
-        BiGuideRead, BiGuideManage,
+        BiGuideRead, BiGuideManage, BiKompassRead, BiKompassManage,
         TicketCreate, TicketRead, TicketUpdate, FaqRead, FaqManage,
         KpiRead, KpiManage, KpiMeasure, OkrRead, OkrManage,
         StammdatenManage, DashboardRead, AppLogRead, DocsRead
@@ -108,6 +110,8 @@ public static class Permissions
         [DriverUpdate] = "Treiber bearbeiten",
         [BiGuideRead] = "BI-Guide anzeigen",
         [BiGuideManage] = "BI-Guide verwalten",
+        [BiKompassRead] = "BI-Kompass anzeigen",
+        [BiKompassManage] = "BI-Kompass bewirtschaften",
         [TicketCreate] = "Tickets erstellen",
         [TicketRead] = "Tickets anzeigen",
         [TicketUpdate] = "Tickets bearbeiten",
@@ -154,8 +158,13 @@ public static class Permissions
         },
         new PermissionGroup
         {
-            Label = "BI-Guide / BI-Kompass",
+            Label = "BI-Guide",
             Permissions = new[] { BiGuideRead, BiGuideManage }
+        },
+        new PermissionGroup
+        {
+            Label = "BI-Kompass",
+            Permissions = new[] { BiKompassRead, BiKompassManage }
         },
         new PermissionGroup
         {

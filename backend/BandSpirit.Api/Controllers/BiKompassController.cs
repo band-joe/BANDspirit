@@ -23,12 +23,12 @@ public class BiKompassVersionsController : ODataController
 
     [HttpGet]
     [EnableQuery(PageSize = 100)]
-    [Authorize(Policy = Permissions.BiGuideRead)]
+    [Authorize(Policy = Permissions.BiKompassRead)]
     public IQueryable<BIKompassVersion> Get() => _db.BIKompassVersionen.AsQueryable();
 
     [HttpGet]
     [EnableQuery]
-    [Authorize(Policy = Permissions.BiGuideRead)]
+    [Authorize(Policy = Permissions.BiKompassRead)]
     public async Task<IActionResult> Get([FromRoute] Guid key)
     {
         var eintrag = await _db.BIKompassVersionen.FirstOrDefaultAsync(v => v.Id == key);
@@ -46,7 +46,7 @@ public class BiKompassVersionsController : ODataController
     /// anderen deaktiviert (genau eine aktive Version zu jedem Zeitpunkt).
     /// </remarks>
     [HttpPost]
-    [Authorize(Policy = Permissions.BiGuideManage)]
+    [Authorize(Policy = Permissions.BiKompassManage)]
     public async Task<IActionResult> Post([FromBody] BIKompassVersion eintrag)
     {
         if (!ModelState.IsValid)
@@ -120,7 +120,7 @@ public class BiKompassUploadController : ControllerBase
     /// Markdown mit erkannter Kapitelstruktur zurück.
     /// </summary>
     [HttpPost("upload")]
-    [Authorize(Policy = Permissions.BiGuideManage)]
+    [Authorize(Policy = Permissions.BiKompassManage)]
     [RequestSizeLimit(MaxDateiGroesse)]
     public async Task<IActionResult> Upload(IFormFile file)
     {

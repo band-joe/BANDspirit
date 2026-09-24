@@ -22,7 +22,7 @@ import {
   TrendingUp, TrendingDown, Minus, LineChart,
 } from 'lucide-react';
 import { useSession } from 'next-auth/react';
-import { hasPermission } from '@/lib/rbac';
+import { usePermissions } from '@/hooks/use-permissions';
 import { apiClient } from '@/lib/api-client';
 import { ODataResponse } from '@/lib/odata';
 import { ApiError } from '@/lib/errors';
@@ -195,9 +195,9 @@ function pruefeSchwellenFehler(
 
 export default function KpiPage() {
   const { data: session } = useSession() || {};
-  const role = (session?.user as { role?: string } | undefined)?.role;
-  const canManage = hasPermission(role, 'kpi:manage');
-  const canMeasure = hasPermission(role, 'kpi:measure');
+  const { can } = usePermissions();
+  const canManage = can('kpi:manage');
+  const canMeasure = can('kpi:measure');
 
   const [kpis, setKpis] = useState<KpiItem[]>([]);
   const [owners, setOwners] = useState<Owner[]>([]);

@@ -22,7 +22,7 @@ import {
   Plus, Edit, Trash2, ArrowLeft, Search, Target, ChevronDown, ChevronRight, User, CalendarRange,
 } from 'lucide-react';
 import { useSession } from 'next-auth/react';
-import { hasPermission } from '@/lib/rbac';
+import { usePermissions } from '@/hooks/use-permissions';
 import { apiClient } from '@/lib/api-client';
 import { ODataResponse } from '@/lib/odata';
 import { ApiError } from '@/lib/errors';
@@ -130,8 +130,8 @@ const EMPTY_FORM = {
 
 export default function OkrPage() {
   const { data: session } = useSession() || {};
-  const role = (session?.user as Record<string, unknown>)?.role as string ?? '';
-  const canManage = hasPermission(role, 'okr:manage');
+  const { can } = usePermissions();
+  const canManage = can('okr:manage');
 
   const [items, setItems] = useState<OKRItem[]>([]);
   const [owners, setOwners] = useState<Owner[]>([]);

@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useSession } from 'next-auth/react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { hasPermission, Permission } from '@/lib/rbac';
+import { usePermissions } from '@/hooks/use-permissions';
 import { apiClient } from '@/lib/api-client';
 import { ODataResponse } from '@/lib/odata';
 import { ApiError } from '@/lib/errors';
@@ -78,9 +78,10 @@ const KATEGORIEN = ['Technisches Problem', 'Funktionsanfrage', 'Datenproblem', '
 export default function HilfePage() {
   const { data: session } = useSession() || {};
   const role = (session?.user as any)?.role ?? '';
+  const { can } = usePermissions();
   const userId = (session?.user as any)?.id ?? '';
-  const canManageTickets = hasPermission(role, 'ticket:update' as Permission);
-  const canManageFaq = hasPermission(role, 'faq:manage' as Permission);
+  const canManageTickets = can('ticket:update');
+  const canManageFaq = can('faq:manage');
   const searchParams = useSearchParams();
   const router = useRouter();
 

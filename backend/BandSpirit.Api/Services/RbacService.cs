@@ -109,7 +109,7 @@ public class RbacService
                 Infrastructure.Auth.Permissions.MeetingRead,
                 Infrastructure.Auth.Permissions.DriverRead,
                 Infrastructure.Auth.Permissions.DashboardRead,
-                Infrastructure.Auth.Permissions.BiGuideRead,
+                Infrastructure.Auth.Permissions.BiKompassRead,
                 Infrastructure.Auth.Permissions.FaqRead,
                 Infrastructure.Auth.Permissions.DocsRead
             }

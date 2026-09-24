@@ -7,10 +7,21 @@
 //
 // Fachliche Vorgabe (V.2.0.7):
 //   - Administrator: hat alle Berechtigungen (sieht alles).
-//   - Mitglied:      Dashboard, MA-Profil, Organigramm, Hilfe, Spannungen.
-//   - Lead-Link:     Dashboard, MA-Profil, Organigramm, Kreise, Hilfe,
-//                    Spannungen, Dokumentation.
-//   - BI-Guide:      Dashboard, BI-Guide, Spannungen.
+//   - Mitglied:      Dashboard, MA-Profil, BI-Kompass, Organigramm, Hilfe,
+//                    Spannungen.
+//   - Lead-Link:     Dashboard, MA-Profil, BI-Kompass, Organigramm, Kreise,
+//                    Hilfe, Spannungen, Dokumentation.
+//   - BI-Guide:      Dashboard, MA-Profil, BI-Guide, BI-Kompass, Hilfe,
+//                    Spannungen.
+//
+// Zuordnung der Benutzerrollen (Tabelle BenutzerRollen):
+//   Admin -> Administrator, User -> Mitglied, CircleAdmin -> Lead-Link,
+//   BiGuideAdmin -> BI-Guide. Die S3-Kreisrolle "Lead Link" spielt für die
+//   Zugriffssteuerung keine Rolle.
+//
+// Den BI-Guide sieht nur BiGuideAdmin (und Administrator); den BI-Kompass
+// lesen alle Rollen, bewirtschaften darf ihn nur BiGuideAdmin (Permission
+// bikompass:manage).
 //
 // Für die vier oben genannten, "verwalteten" Rollen ist diese Whitelist die
 // alleinige Autorität für die Menü-Sichtbarkeit und den Seitenzugriff.
@@ -44,17 +55,19 @@ export type ManagedRole = 'admin' | 'mitglied' | 'lead-link' | 'bi-guide';
  */
 export const ROLE_ACCESS: Record<ManagedRole, AccessKey[] | 'all'> = {
   admin: 'all',
-  mitglied: ['dashboard', 'ma-profil', 'organigramm', 'hilfe', 'spannungen'],
+  mitglied: ['dashboard', 'ma-profil', 'bi-kompass', 'organigramm', 'hilfe', 'spannungen'],
   'lead-link': [
     'dashboard',
     'ma-profil',
+    'bi-kompass',
     'organigramm',
     'kreise',
     'hilfe',
     'spannungen',
     'dokumentation',
   ],
-  'bi-guide': ['dashboard', 'bi-guide', 'spannungen'],
+  // MA-Profil und Hilfe ergänzt: jede Rolle darf Tickets erstellen/anschauen.
+  'bi-guide': ['dashboard', 'ma-profil', 'bi-guide', 'bi-kompass', 'hilfe', 'spannungen'],
 };
 
 /**
@@ -80,8 +93,10 @@ export function normalizeManagedRole(role: string | undefined | null): ManagedRo
     case 'member':
       return 'mitglied';
     case 'leadlink':
+    case 'circleadmin':
       return 'lead-link';
     case 'biguide':
+    case 'biguideadmin':
       return 'bi-guide';
     default:
       return null;

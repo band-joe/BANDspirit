@@ -15,7 +15,7 @@ import {
 } from '@/components/ui/dialog';
 import { Plus, Tag, ArrowLeft, Edit2, Trash2 } from 'lucide-react';
 import { useSession } from 'next-auth/react';
-import { hasPermission } from '@/lib/rbac';
+import { usePermissions } from '@/hooks/use-permissions';
 import { apiClient } from '@/lib/api-client';
 import { ODataResponse } from '@/lib/odata';
 import { ApiError } from '@/lib/errors';
@@ -44,8 +44,8 @@ const FARBE_FALLBACK = 'bg-gray-100 text-gray-600 border-gray-200';
 
 export default function BiGuideKategorienPage() {
   const { data: session } = useSession() || {};
-  const role = (session?.user as Record<string, unknown>)?.role as string ?? '';
-  const canManage = hasPermission(role, 'stammdaten:manage');
+  const { can } = usePermissions();
+  const canManage = can('stammdaten:manage');
 
   const [kategorien, setKategorien] = useState<BiGuideKategorie[]>([]);
   const [loading, setLoading] = useState(true);
