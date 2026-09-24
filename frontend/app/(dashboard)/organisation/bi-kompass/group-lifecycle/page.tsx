@@ -17,7 +17,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { hasPermission } from '@/lib/rbac';
+import { usePermissions } from '@/hooks/use-permissions';
 import { formatDate } from '@/lib/utils';
 import { apiClient } from '@/lib/api-client';
 import { ApiError } from '@/lib/errors';
@@ -310,8 +310,8 @@ function RisksTable() {
 // ──────────────────────────────────────────
 export default function GroupLifecyclePage() {
   const { data: session } = useSession() || {};
-  const role = (session?.user as any)?.role;
-  const canEdit = hasPermission(role, 'org:circle:update');
+  const { can } = usePermissions();
+  const canEdit = can('org:circle:update');
 
   const [loading, setLoading] = useState(true);
   const [circles, setCircles] = useState<CircleLifecycle[]>([]);

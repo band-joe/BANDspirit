@@ -77,7 +77,7 @@ const navItems: NavItem[] = [
   // für alle angemeldeten Benutzer sichtbar (keine spezielle Berechtigung nötig).
   { label: 'Mail-Verteiler', href: '/mail-verteiler', icon: <Mails className="h-5 w-5" />, accessKey: 'mail-verteiler' },
   { label: 'BI-Guide', href: '/organisation/bi-guide', icon: <Newspaper className="h-5 w-5" />, permission: 'biguide:read' as Permission, accessKey: 'bi-guide' },
-  { label: 'BI-Kompass', href: '/organisation/bi-kompass', icon: <Compass className="h-5 w-5" />, permission: 'biguide:read' as Permission, accessKey: 'bi-kompass' },
+  { label: 'BI-Kompass', href: '/organisation/bi-kompass', icon: <Compass className="h-5 w-5" />, permission: 'bikompass:read' as Permission, accessKey: 'bi-kompass' },
   { label: 'Organigramm', href: '/organisation/graph', icon: <Network className="h-5 w-5" />, permission: 'org:circle:read' as Permission, accessKey: 'organigramm' },
   { label: 'Life Cycle Prozess', href: '/organisation/bi-kompass/group-lifecycle', icon: <RefreshCw className="h-5 w-5" />, permission: 'org:circle:read' as Permission, accessKey: 'lifecycle' },
   // "Kreise" ist der Mutations-Einstieg (Kreise erfassen/bearbeiten) und darf nur

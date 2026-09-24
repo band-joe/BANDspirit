@@ -18,7 +18,7 @@ import {
   Plus, Edit, Trash2, ArrowLeft, Search, CalendarRange,
 } from 'lucide-react';
 import { useSession } from 'next-auth/react';
-import { hasPermission } from '@/lib/rbac';
+import { usePermissions } from '@/hooks/use-permissions';
 import { apiClient } from '@/lib/api-client';
 import { ODataResponse } from '@/lib/odata';
 import { ApiError } from '@/lib/errors';
@@ -58,8 +58,8 @@ const EMPTY_FORM = {
 
 export default function OkrZyklenPage() {
   const { data: session } = useSession() || {};
-  const role = (session?.user as Record<string, unknown>)?.role as string ?? '';
-  const canManage = hasPermission(role, 'okr:manage');
+  const { can } = usePermissions();
+  const canManage = can('okr:manage');
 
   const [items, setItems] = useState<ZyklusItem[]>([]);
   const [loading, setLoading] = useState(true);

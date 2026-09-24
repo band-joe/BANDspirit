@@ -29,11 +29,14 @@ public static class RolePermissionSeeder
             // DriversController). Tickets darf jede Rolle erstellen UND anschauen
             // koennen (TicketCreate + TicketRead) - es gibt aktuell keinen
             // "nur eigene Tickets"-Filter, TicketRead zeigt alle Tickets.
+            // BI-Guide ist der Rolle BiGuideAdmin vorbehalten; den BI-Kompass
+            // darf jede Rolle lesen (BiKompassRead), bewirtschaften nur
+            // BiGuideAdmin (BiKompassManage).
             ("User", new[]
             {
                 Permissions.CircleRead, Permissions.RoleRead, Permissions.MeetingRead,
                 Permissions.DriverRead, Permissions.DriverCreate, Permissions.DashboardRead,
-                Permissions.BiGuideRead, Permissions.FaqRead, Permissions.TicketCreate,
+                Permissions.BiKompassRead, Permissions.FaqRead, Permissions.TicketCreate,
                 Permissions.TicketRead, Permissions.DocsRead, Permissions.KpiRead,
                 Permissions.OkrRead
             })

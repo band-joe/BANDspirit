@@ -13,7 +13,7 @@ import {
 } from '@/components/ui/dialog';
 import { Plus, Shield, Star, ArrowLeft, ChevronRight } from 'lucide-react';
 import { useSession } from 'next-auth/react';
-import { hasPermission } from '@/lib/rbac';
+import { usePermissions } from '@/hooks/use-permissions';
 import { apiClient } from '@/lib/api-client';
 import { ODataResponse } from '@/lib/odata';
 import { ApiError } from '@/lib/errors';
@@ -59,7 +59,7 @@ function fromDateInput(value: string): string | null {
 
 export default function S3RollenPage() {
   const { data: session } = useSession() || {};
-  const role = (session?.user as Record<string, unknown>)?.role as string ?? '';
+  const { can } = usePermissions();
 
   const [definitionen, setDefinitionen] = useState<RollenDefinition[]>([]);
   const [loading, setLoading] = useState(true);
@@ -136,7 +136,7 @@ export default function S3RollenPage() {
 
   /* ---------- Render ---------- */
 
-  const canManage = hasPermission(role, 'stammdaten:manage');
+  const canManage = can('stammdaten:manage');
 
   return (
     <div className="space-y-6">

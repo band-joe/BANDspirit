@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { useSession } from 'next-auth/react';
-import { hasPermission } from '@/lib/rbac';
+import { usePermissions } from '@/hooks/use-permissions';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -49,9 +49,8 @@ export function StammdatenVerwaltung({
   const [form, setForm] = useState({ code: '', bezeichnung: '', beschreibung: '', farbe: '', sortierung: 0 });
   const [saving, setSaving] = useState(false);
   const [footerMessage, setFooterMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
-
-  const role = (session?.user as any)?.role ?? '';
-  const canManage = hasPermission(role, 'stammdaten:manage');
+  const { can } = usePermissions();
+  const canManage = can('stammdaten:manage');
 
   const load = useCallback(async () => {
     try {

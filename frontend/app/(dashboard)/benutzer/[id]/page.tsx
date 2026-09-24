@@ -12,6 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Switch } from '@/components/ui/switch';
 import { ArrowLeft, Shield, Pencil, Save, X, UserCheck, UserX, Mail, Clock, AlertTriangle } from 'lucide-react';
 import { hasPermission, getRoleLabel } from '@/lib/rbac';
+import { usePermissions } from '@/hooks/use-permissions';
 import { apiClient } from '@/lib/api-client';
 import { ODataResponse } from '@/lib/odata';
 import { formatDate } from '@/lib/utils';
@@ -60,7 +61,7 @@ export default function BenutzerDetailPage() {
   const { id } = useParams();
   const router = useRouter();
   const { data: session } = useSession() || {};
-  const currentRole = (session?.user as any)?.role;
+  const { can } = usePermissions();
   const currentUserId = (session?.user as any)?.id;
 
   const [user, setUser] = useState<UserDetail | null>(null);
@@ -151,11 +152,11 @@ export default function BenutzerDetailPage() {
   if (!user) return null;
 
   const isSelf = currentUserId === user.id;
-  const canEdit = hasPermission(currentRole, 'user:update');
+  const canEdit = can('user:update');
   // UI-29-Fix: Deaktivieren ist jetzt ein PATCH (aktiv=false), keine Löschung
   // mehr -> Backend prüft dafür user:update (UsersController.cs), nicht mehr
   // user:delete.
-  const canDeactivate = hasPermission(currentRole, 'user:update') && !isSelf;
+  const canDeactivate = can('user:update') && !isSelf;
 
   return (
     <div className="space-y-6">

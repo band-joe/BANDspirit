@@ -16,7 +16,6 @@ import {
 } from '@/components/ui/alert-dialog';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { hasPermission } from '@/lib/rbac';
 import { usePermissions } from '@/hooks/use-permissions';
 import { apiClient, getToken } from '@/lib/api-client';
 import { ODataResponse } from '@/lib/odata';
@@ -57,20 +56,11 @@ export default function OrganisationPage() {
   const { data: session } = useSession() || {};
   const role = (session?.user as Record<string, unknown>)?.role as string ?? '';
 
-  // DB-gestützte Berechtigungen: ein Lead-Link (Rolle "User" mit org:circle:create
-  // in der DB) darf Kreise erfassen, ein normales S3-Mitglied nicht. Admins immer.
-  const { permissions: dbPermissions, isLoading: permsLoading } = usePermissions();
-  const canCreateCircle =
-    role === 'Admin' ||
-    (!permsLoading && dbPermissions.length > 0
-      ? dbPermissions.includes('org:circle:create')
-      : hasPermission(role, 'org:circle:create'));
+  // DB-gestützte Berechtigungen (z. B. CircleAdmin mit org:circle:create).
+  const { can } = usePermissions();
+  const canCreateCircle = can('org:circle:create');
   // Berechtigung zum Umhängen/Lösen von Kreisen (gleiche wie "Kreis bearbeiten").
-  const canUpdateCircle =
-    role === 'Admin' ||
-    (!permsLoading && dbPermissions.length > 0
-      ? dbPermissions.includes('org:circle:update')
-      : hasPermission(role, 'org:circle:update'));
+  const canUpdateCircle = can('org:circle:update');
 
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -636,7 +626,7 @@ export default function OrganisationPage() {
               <Button><Plus className="h-4 w-4 mr-2" />Neuer Kreis</Button>
             </Link>
           )}
-          {activeTab === 'drivers' && hasPermission(role, 'org:driver:create') && (
+          {activeTab === 'drivers' && can('org:driver:create') && (
             <Dialog open={driverDialogOpen} onOpenChange={setDriverDialogOpen}>
               <DialogTrigger asChild>
                 <Button><Plus className="h-4 w-4 mr-2" />Neue Spannung</Button>
@@ -1114,7 +1104,7 @@ export default function OrganisationPage() {
                             </div>
                             <div className="flex items-center gap-2 flex-shrink-0">
                               {/* Status quick-actions */}
-                              {hasPermission(role, 'org:driver:update') && driver.status !== 'ERLEDIGT' && (
+                              {can('org:driver:update') && driver.status !== 'ERLEDIGT' && (
                                 <div className="flex gap-1" onClick={e => e.preventDefault()}>
                                   {driver.status === 'OFFEN' && (
                                     <Button
@@ -1347,7 +1337,7 @@ export default function OrganisationPage() {
                           {r.isRepresentative && <Handshake className="h-3 w-3" />}
                           {r.isFacilitator && <Gavel className="h-3 w-3" />}
                           {r.name}
-                          {hasPermission(role, 'org:role:unassign') && (
+                          {can('org:role:unassign') && (
                             <AlertDialog>
                               <AlertDialogTrigger asChild>
                                 <button

@@ -12,7 +12,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { hasPermission } from '@/lib/rbac';
+import { usePermissions } from '@/hooks/use-permissions';
 import { apiClient } from '@/lib/api-client';
 import { ODataResponse } from '@/lib/odata';
 import { ApiError } from '@/lib/errors';
@@ -88,8 +88,8 @@ export default function SpannungDetailPage() {
   const params = useParams();
   const router = useRouter();
   const { data: session } = useSession() || {};
-  const role = (session?.user as Record<string, unknown>)?.role as string ?? '';
-  const canEdit = hasPermission(role, 'org:driver:update');
+  const { can } = usePermissions();
+  const canEdit = can('org:driver:update');
 
   const [driver, setDriver] = useState<DriverDetail | null>(null);
   const [loading, setLoading] = useState(true);

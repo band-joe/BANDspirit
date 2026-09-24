@@ -13,7 +13,7 @@ import {
 } from '@/components/ui/dialog';
 import { Plus, Edit, Shield, ShieldCheck, ArrowLeft } from 'lucide-react';
 import { useSession } from 'next-auth/react';
-import { hasPermission } from '@/lib/rbac';
+import { usePermissions } from '@/hooks/use-permissions';
 import { apiClient } from '@/lib/api-client';
 import { ODataResponse } from '@/lib/odata';
 import { ApiError } from '@/lib/errors';
@@ -41,7 +41,7 @@ interface BenutzerRolle {
 
 export default function BenutzerRollenPage() {
   const { data: session } = useSession() || {};
-  const role = (session?.user as Record<string, unknown>)?.role as string ?? '';
+  const { can } = usePermissions();
 
   const [rollen, setRollen] = useState<BenutzerRolle[]>([]);
   const [loading, setLoading] = useState(true);
@@ -137,7 +137,7 @@ export default function BenutzerRollenPage() {
 
   /* ---------- Render ---------- */
 
-  const canManage = hasPermission(role, 'user:manage');
+  const canManage = can('user:manage');
 
   return (
     <div className="space-y-6">

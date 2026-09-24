@@ -13,7 +13,7 @@ import { Textarea } from '@/components/ui/textarea';
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogTrigger,
 } from '@/components/ui/dialog';
-import { hasPermission } from '@/lib/rbac';
+import { usePermissions } from '@/hooks/use-permissions';
 import { apiClient } from '@/lib/api-client';
 import { ODataResponse } from '@/lib/odata';
 import { ApiError } from '@/lib/errors';
@@ -34,7 +34,7 @@ const OBJECTION_STATUS_COLORS: Record<string, string> = { OFFEN: 'bg-red-100 tex
 
 export default function MeetingDetailPage() {
   const { data: session } = useSession() || {};
-  const role = (session?.user as Record<string, unknown>)?.role as string ?? '';
+  const { can } = usePermissions();
   const params = useParams();
   const router = useRouter();
   const [meeting, setMeeting] = useState<Record<string, unknown> | null>(null);
@@ -210,7 +210,7 @@ export default function MeetingDetailPage() {
       <div className="space-y-4">
         <div className="flex justify-between items-center">
           <h2 className="text-lg font-semibold">Vorschläge & Consent-Prozess</h2>
-          {hasPermission(role, 'org:proposal:create') && (
+          {can('org:proposal:create') && (
             <Dialog open={proposalDialogOpen} onOpenChange={setProposalDialogOpen}>
               <DialogTrigger asChild><Button size="sm"><Plus className="h-4 w-4 mr-2" />Vorschlag</Button></DialogTrigger>
               <DialogContent>
@@ -255,12 +255,12 @@ export default function MeetingDetailPage() {
                           <MessageSquare className="h-3 w-3 mr-1" />Vorstellen
                         </Button>
                       )}
-                      {p.status === 'VORGESTELLT' && hasPermission(role, 'org:objection:create') && (
+                      {p.status === 'VORGESTELLT' && can('org:objection:create') && (
                         <Button size="sm" variant="outline" className="text-red-600 border-red-200" onClick={() => { setObjectionProposalId(p.id as string); setObjectionDialogOpen(true); }}>
                           <AlertTriangle className="h-3 w-3 mr-1" />Einwand erheben
                         </Button>
                       )}
-                      {p.status === 'VORGESTELLT' && openObjections.length === 0 && hasPermission(role, 'org:decision:create') && (
+                      {p.status === 'VORGESTELLT' && openObjections.length === 0 && can('org:decision:create') && (
                         <Button size="sm" className="bg-green-600 hover:bg-green-700" onClick={() => decideProposal(p.id as string)}>
                           <CheckCircle2 className="h-3 w-3 mr-1" />Consent erteilen
                         </Button>
@@ -279,7 +279,7 @@ export default function MeetingDetailPage() {
                                   <Badge className={OBJECTION_STATUS_COLORS[o.status as string] || ''} >{String(o.status)}</Badge>
                                   <span className="text-muted-foreground">von {benutzerName(o.userId as string | null)}</span>
                                 </div>
-                                {o.status === 'OFFEN' && hasPermission(role, 'org:objection:update') && (
+                                {o.status === 'OFFEN' && can('org:objection:update') && (
                                   <div className="flex gap-1">
                                     <Button size="sm" variant="ghost" className="h-7 text-green-600" onClick={() => resolveObjection(o.id as string, 'INTEGRIERT')}>
                                       <CheckCircle className="h-3 w-3 mr-1" />Integriert

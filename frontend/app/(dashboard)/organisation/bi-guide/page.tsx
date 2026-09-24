@@ -12,7 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
-import { hasPermission } from '@/lib/rbac';
+import { usePermissions } from '@/hooks/use-permissions';
 import { apiClient } from '@/lib/api-client';
 import { ODataResponse } from '@/lib/odata';
 import { ApiError } from '@/lib/errors';
@@ -49,9 +49,8 @@ const KATEGORIE_FALLBACK_FARBE = 'bg-gray-100 text-gray-600 border-gray-200';
 export default function BIGuidePage() {
   const { data: session } = useSession() || {};
   const searchParams = useSearchParams();
-  const role = (session?.user as any)?.role ?? '';
-  const userId = (session?.user as any)?.id ?? '';
-  const canManage = hasPermission(role, 'biguide:manage');
+  const { can } = usePermissions();
+  const canManage = can('biguide:manage');
 
   const [news, setNews] = useState<BIGuideNews[]>([]);
   const [kategorien, setKategorien] = useState<BiGuideKategorie[]>([]);
@@ -259,7 +258,6 @@ export default function BIGuidePage() {
           {filtered.map((item, idx) => {
             const isExpanded = expandedId === item.id;
             const katColor = kategorien.find((k) => k.name === item.kategorie)?.farbe ?? KATEGORIE_FALLBACK_FARBE;
-            const canManageItem = canManage && (item.createdById === userId || role === 'Admin');
             return (
               <motion.div
                 key={item.id}
@@ -309,7 +307,7 @@ export default function BIGuidePage() {
                         <div className="pt-4 prose prose-sm max-w-none text-foreground/80 whitespace-pre-wrap">
                           {item.inhalt}
                         </div>
-                        {canManageItem && (
+                        {canManage && (
                           <div className="flex gap-2 mt-4 pt-3 border-t">
                             <Button variant="outline" size="sm" className="gap-1" onClick={() => openEdit(item)}>
                               <Edit2 className="h-3 w-3" /> Bearbeiten

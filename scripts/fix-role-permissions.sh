@@ -1,13 +1,14 @@
 #!/usr/bin/env bash
 # ==============================================================================
-# BANDspirit – Fehlende RolePermissions nachtragen (Spannungen/Tickets)
+# BANDspirit – RolePermissions nachtragen/bereinigen (Spannungen, Tickets,
+#              Kreisrollen, BI-Guide, BI-Kompass)
 # ------------------------------------------------------------------------------
 # RolePermissionSeeder.cs befüllt die Tabelle "RolePermissions" nur beim
 # allerersten Start (leere Tabelle) - auf bereits laufenden Installationen
 # wirken spätere Änderungen am Seeder NICHT rückwirkend. Dieses Skript trägt
-# fehlende Zeilen direkt nach, idempotent (mehrfach ausführbar, ändert nichts
-# an bereits vorhandenen Berechtigungen) und ohne Zugangsdaten im Skript
-# (nutzt die Container-eigenen Umgebungsvariablen).
+# fehlende Zeilen direkt nach und entfernt nicht mehr vorgesehene
+# BI-Guide-Rechte - idempotent (mehrfach ausführbar) und ohne Zugangsdaten im
+# Skript (nutzt die Container-eigenen Umgebungsvariablen).
 #
 # Fachlicher Hintergrund (siehe Commits 1c2395b/29e8bb2 im Branch
 # "berechtigungen" sowie der Ticket-Read-Fix hier im selben Branch):
@@ -20,6 +21,14 @@
 #     abfragt.
 #   Betrifft die Basisrollen "User", "BiGuideAdmin", "Metriker" - "Admin" und
 #   "CircleAdmin" hatten diese Berechtigungen bereits.
+#
+# Ergänzt im Branch "berechtigungen-bi-guide-kreisrollen":
+#   - CircleAdmin bewirtschaftet Kreisrollen (org:role:read/create/update/
+#     assign/unassign).
+#   - BI-Guide sieht und verwaltet nur BiGuideAdmin (und Admin):
+#     biguide:read/manage wird bei allen anderen Rollen ENTFERNT.
+#   - BI-Kompass: neue Berechtigungen bikompass:read (alle Rollen) und
+#     bikompass:manage (nur BiGuideAdmin und Admin).
 #
 # ------------------------------------------------------------------------------
 # Aufruf (aus dem Projektverzeichnis des Zielsystems):
@@ -49,7 +58,7 @@ if ! docker ps --format '{{.Names}}' | grep -qx "$PG_CONTAINER"; then
 fi
 
 echo "=============================================================="
-echo " BANDspirit – Fehlende RolePermissions nachtragen"
+echo " BANDspirit – RolePermissions nachtragen/bereinigen"
 echo " Container: $PG_CONTAINER"
 echo "=============================================================="
 echo ""
@@ -59,10 +68,14 @@ trap 'rm -rf "$TMP_DIR"' EXIT
 
 # ── SQL-Skripte lokal vorbereiten ────────────────────────────────────────────
 cat > "$TMP_DIR/before_after.sql" <<'EOF'
-SELECT "Role", "Permission" FROM "RolePermissions"
+SELECT "Role", string_agg("Permission", ', ' ORDER BY "Permission") AS "Permissions"
+FROM "RolePermissions"
 WHERE "Permission" IN ('org:driver:read','org:driver:create','ticket:create','ticket:read')
-  AND "Role" IN ('User','BiGuideAdmin','Metriker')
-ORDER BY "Role", "Permission";
+   OR "Permission" LIKE 'org:role:%'
+   OR "Permission" LIKE 'biguide:%'
+   OR "Permission" LIKE 'bikompass:%'
+GROUP BY "Role"
+ORDER BY "Role";
 EOF
 
 cat > "$TMP_DIR/fix.sql" <<'EOF'
@@ -85,6 +98,35 @@ FROM (VALUES
 LEFT JOIN "BenutzerRollen" br ON br."Name" = v.role
 ON CONFLICT ("Role", "Permission") DO NOTHING;
 
+-- Kreisrollen, BI-Guide, BI-Kompass (nur für Rollen, die auf dem System existieren)
+INSERT INTO "RolePermissions" ("Id","Role","Permission","RoleId","CreatedAt","UpdatedAt")
+SELECT gen_random_uuid(), v.role, v.permission, br."Id", now(), now()
+FROM (VALUES
+  ('CircleAdmin',  'org:role:read'),
+  ('CircleAdmin',  'org:role:create'),
+  ('CircleAdmin',  'org:role:update'),
+  ('CircleAdmin',  'org:role:assign'),
+  ('CircleAdmin',  'org:role:unassign'),
+  ('Admin',        'biguide:read'),
+  ('Admin',        'biguide:manage'),
+  ('BiGuideAdmin', 'biguide:read'),
+  ('BiGuideAdmin', 'biguide:manage'),
+  ('Admin',        'bikompass:read'),
+  ('Admin',        'bikompass:manage'),
+  ('BiGuideAdmin', 'bikompass:read'),
+  ('BiGuideAdmin', 'bikompass:manage'),
+  ('User',         'bikompass:read'),
+  ('CircleAdmin',  'bikompass:read'),
+  ('Metriker',     'bikompass:read')
+) AS v(role, permission)
+JOIN "BenutzerRollen" br ON br."Name" = v.role
+ON CONFLICT ("Role", "Permission") DO NOTHING;
+
+-- BI-Guide ist BiGuideAdmin (und Admin) vorbehalten
+DELETE FROM "RolePermissions"
+WHERE "Permission" IN ('biguide:read','biguide:manage')
+  AND "Role" NOT IN ('Admin','BiGuideAdmin');
+
 COMMIT;
 EOF
 
@@ -97,7 +139,7 @@ docker exec "$PG_CONTAINER" bash -c \
   'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -f /tmp/rp_before_after.sql'
 
 echo ""
-echo "-> Nachtragen ..."
+echo "-> Nachtragen/Bereinigen ..."
 docker exec "$PG_CONTAINER" bash -c \
   'psql -X -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB" -f /tmp/rp_fix.sql'
 

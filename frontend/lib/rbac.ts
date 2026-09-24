@@ -16,6 +16,7 @@ export type Permission =
   | 'org:proposal:create' | 'org:objection:create' | 'org:objection:update'
   | 'org:decision:create' | 'org:driver:read' | 'org:driver:create' | 'org:driver:update'
   | 'biguide:read' | 'biguide:manage'
+  | 'bikompass:read' | 'bikompass:manage'
   | 'ticket:create' | 'ticket:read' | 'ticket:update'
   | 'faq:read' | 'faq:manage'
   | 'kpi:read' | 'kpi:manage' | 'kpi:measure'
@@ -31,6 +32,7 @@ const ALL_PERMISSIONS: Permission[] = [
   'org:proposal:create', 'org:objection:create', 'org:objection:update',
   'org:decision:create', 'org:driver:read', 'org:driver:create', 'org:driver:update',
   'biguide:read', 'biguide:manage',
+  'bikompass:read', 'bikompass:manage',
   'ticket:create', 'ticket:read', 'ticket:update',
   'faq:read', 'faq:manage',
   'kpi:read', 'kpi:manage', 'kpi:measure',
@@ -49,7 +51,7 @@ export const DEFAULT_PERMISSIONS: Record<UserRole, Permission[]> = {
     'dashboard:read',
     'org:circle:read', 'org:role:read', 'org:meeting:read',
     'org:driver:read',
-    'biguide:read',
+    'bikompass:read',
     'ticket:create',
     'faq:read', 'docs:read',
   ],
@@ -95,6 +97,8 @@ export const PERMISSION_LABELS: Record<Permission, string> = {
   'org:driver:update':     'Treiber bearbeiten',
   'biguide:read':          'BI-Guide anzeigen',
   'biguide:manage':        'BI-Guide verwalten',
+  'bikompass:read':        'BI-Kompass anzeigen',
+  'bikompass:manage':      'BI-Kompass bewirtschaften',
   'ticket:create':         'Support-Ticket erstellen',
   'ticket:read':           'Support-Tickets anzeigen',
   'ticket:update':         'Support-Tickets bearbeiten',

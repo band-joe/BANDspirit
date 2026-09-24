@@ -123,12 +123,20 @@ refuses to start (see the startup check in `Program.cs`).
   enforces route access server-side: `/admin/*` requires `role === 'Admin'`, and for the four managed
   roles (Admin/Mitglied/Lead-Link/BI-Guide) `lib/nav-access.ts` provides a per-role page/tab whitelist
   (`normalizeManagedRole`, `roleCanAccessKey`, `pathToAccessKey`) that middleware enforces with a redirect
-  to `ACCESS_REDIRECT_TARGET`. Unrecognized/custom roles are left unrestricted by that whitelist.
+  to `ACCESS_REDIRECT_TARGET`. Benutzerrollen map as Admin→Administrator, User→Mitglied,
+  CircleAdmin→Lead-Link, BiGuideAdmin→BI-Guide (the S3 circle role "Lead Link" is not used for access
+  control). Unrecognized/custom roles (e.g. Metriker) are left unrestricted by that whitelist.
 - **RBAC on the frontend** (`lib/rbac.ts`): client-side permission model mirroring the backend's
   `<bereich>:<aktion>` strings, used for UI filtering only — the authoritative check is always the C#
-  backend. `DEFAULT_PERMISSIONS` is a static fallback; `usePermissions()` (`hooks/use-permissions.ts`)
-  loads the real DB-backed permissions when available. Keep `Permission` values here in sync with
-  `Infrastructure/Auth/Permissions.cs` on the backend.
+  backend. In components, check permissions with `const { can } = usePermissions()` → `can('x:y')`
+  (`hooks/use-permissions.ts`): it uses the DB-backed permissions of the user's Benutzerrolle and only
+  falls back to the static `DEFAULT_PERMISSIONS` (which know just Admin/User) while those are loading.
+  Don't call the static `hasPermission(role, …)` from `lib/rbac.ts` in pages — it ignores DB roles such
+  as CircleAdmin or BiGuideAdmin. Keep `Permission` values here in sync with
+  `Infrastructure/Auth/Permissions.cs` on the backend. BI-Guide (`biguide:*`) is reserved for
+  BiGuideAdmin/Admin; BI-Kompass has its own `bikompass:read` (all roles) / `bikompass:manage`
+  (BiGuideAdmin/Admin). Permission changes for existing installations go into
+  `scripts/fix-role-permissions.sh` (the seeder only runs on an empty table).
 - **Data fetching**: all backend calls go through `lib/api-client.ts` (`apiClient.get/post/patch/put/delete`),
   which injects the bearer token, throws `ApiError` on non-2xx, and exposes `getAllPages` to transparently
   follow OData `@odata.nextLink` pagination. `lib/odata.ts` provides `ODataQuery` (fluent `$filter`/
