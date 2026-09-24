@@ -91,6 +91,36 @@ angelegt:
 
 ---
 
+## Deployment auf das Betriebssystem (Proxmox)
+
+Entwickelt wird in der WSL-Umgebung, Änderungen gelangen per Merge Request nach
+`main`. Das Betriebssystem holt sich nur `main` aus dem GitLab – dort wird
+weder entwickelt noch gepusht.
+
+**Einmalig einrichten:**
+
+1. `gitlab.bi-infra.band.local` auflösbar machen (DNS oder Eintrag in `/etc/hosts`).
+2. SSH-Key der VM im GitLab-Projekt als **Deploy Key ohne Schreibrecht** hinterlegen
+   (Settings → Repository → Deploy keys), testen mit `ssh -T git@gitlab.bi-infra.band.local`.
+3. `origin` setzen:
+   `git remote set-url origin git@gitlab.bi-infra.band.local:bi-inf/apps/bandspirit/bandspirit.git`
+4. `.env` darf nicht von Git verfolgt werden: `git rm --cached .env .env.bak`
+
+**Update einspielen:**
+
+```bash
+./scripts/deploy.sh            # holt main (nur Fast-Forward) und baut den Stack neu
+./scripts/deploy.sh --backup   # vorher Backup über scripts/backup.sh
+```
+
+Das Skript bricht ab bei lokalen Änderungen, falschem Branch, fehlender oder
+versionierter `.env` sowie bei abweichender History. Es weist darauf hin, wenn
+mit dem Update Skripte unter `scripts/` oder `migration/` geändert wurden
+(z. B. `fix-role-permissions.sh`) – diese werden nicht automatisch ausgeführt.
+Datenbank-Migrationen laufen beim Start der API automatisch.
+
+---
+
 ## Lokale Entwicklung (ohne Docker)
 
 Voraussetzung: .NET 8 SDK, PostgreSQL, Redis.
