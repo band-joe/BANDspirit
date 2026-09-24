@@ -6,7 +6,6 @@ using Microsoft.AspNetCore.OData.Deltas;
 using Microsoft.AspNetCore.OData.Query;
 using Microsoft.AspNetCore.OData.Routing.Controllers;
 using Microsoft.EntityFrameworkCore;
-using System.Security.Claims;
 
 using BandSpirit.Api.Infrastructure.Auth;
 namespace BandSpirit.Api.Controllers;
@@ -56,13 +55,8 @@ public class BiGuideNewsController : ODataController
             return NotFound();
         }
 
-        // Fremdinhalt-Schutz: Nur eigene Beiträge dürfen bearbeitet werden (außer Admin).
-        var currentUserId = User.FindFirstValue(ClaimTypes.NameIdentifier) ?? User.FindFirstValue("sub");
-        var isAdmin = User.IsInRole("Admin");
-        if (!isAdmin && eintrag.CreatedById != currentUserId)
-        {
-            return Forbid();
-        }
+        // Alle Rollen mit biguide:manage (BiGuideAdmin, Admin) dürfen jeden Beitrag
+        // bewirtschaften - keine Einschränkung auf eigene Beiträge.
 
         delta.Patch(eintrag);
         await _db.SaveChangesAsync();
@@ -79,13 +73,8 @@ public class BiGuideNewsController : ODataController
             return NotFound();
         }
 
-        // Fremdinhalt-Schutz: Nur eigene Beiträge dürfen gelöscht werden (außer Admin).
-        var currentUserId = User.FindFirstValue(ClaimTypes.NameIdentifier) ?? User.FindFirstValue("sub");
-        var isAdmin = User.IsInRole("Admin");
-        if (!isAdmin && eintrag.CreatedById != currentUserId)
-        {
-            return Forbid();
-        }
+        // Alle Rollen mit biguide:manage (BiGuideAdmin, Admin) dürfen jeden Beitrag
+        // bewirtschaften - keine Einschränkung auf eigene Beiträge.
 
         _db.BIGuideNews.Remove(eintrag);
         await _db.SaveChangesAsync();

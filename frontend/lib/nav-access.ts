@@ -9,8 +9,9 @@
 //   - Administrator: hat alle Berechtigungen (sieht alles).
 //   - Mitglied:      Dashboard, MA-Profil, BI-Kompass, Organigramm, Hilfe,
 //                    Spannungen.
-//   - Lead-Link:     Dashboard, MA-Profil, BI-Kompass, Organigramm, Kreise,
-//                    Hilfe, Spannungen, Dokumentation.
+//   - Lead-Link:     Dashboard, MA-Profil, BI-Kompass, Organigramm,
+//                    Life Cycle Prozess, Kreise, Hilfe, Spannungen,
+//                    Dokumentation (keine Benutzerverwaltung).
 //   - BI-Guide:      Dashboard, MA-Profil, BI-Guide, BI-Kompass, Hilfe,
 //                    Spannungen.
 //
@@ -61,6 +62,7 @@ export const ROLE_ACCESS: Record<ManagedRole, AccessKey[] | 'all'> = {
     'ma-profil',
     'bi-kompass',
     'organigramm',
+    'lifecycle',
     'kreise',
     'hilfe',
     'spannungen',

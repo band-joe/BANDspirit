@@ -49,9 +49,7 @@ const KATEGORIE_FALLBACK_FARBE = 'bg-gray-100 text-gray-600 border-gray-200';
 export default function BIGuidePage() {
   const { data: session } = useSession() || {};
   const searchParams = useSearchParams();
-  const role = (session?.user as any)?.role ?? '';
   const { can } = usePermissions();
-  const userId = (session?.user as any)?.id ?? '';
   const canManage = can('biguide:manage');
 
   const [news, setNews] = useState<BIGuideNews[]>([]);
@@ -260,7 +258,6 @@ export default function BIGuidePage() {
           {filtered.map((item, idx) => {
             const isExpanded = expandedId === item.id;
             const katColor = kategorien.find((k) => k.name === item.kategorie)?.farbe ?? KATEGORIE_FALLBACK_FARBE;
-            const canManageItem = canManage && (item.createdById === userId || role === 'Admin');
             return (
               <motion.div
                 key={item.id}
@@ -310,7 +307,7 @@ export default function BIGuidePage() {
                         <div className="pt-4 prose prose-sm max-w-none text-foreground/80 whitespace-pre-wrap">
                           {item.inhalt}
                         </div>
-                        {canManageItem && (
+                        {canManage && (
                           <div className="flex gap-2 mt-4 pt-3 border-t">
                             <Button variant="outline" size="sm" className="gap-1" onClick={() => openEdit(item)}>
                               <Edit2 className="h-3 w-3" /> Bearbeiten
