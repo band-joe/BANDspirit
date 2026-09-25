@@ -710,6 +710,7 @@ export default function OrganigrammPage() {
                 loading={loading}
                 error={error}
                 onNavigateToTree={handleCircleNavigateToTree}
+                onShowList={() => setViewMode('tree')}
               />
             </TabsContent>
           </Tabs>

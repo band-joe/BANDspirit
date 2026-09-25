@@ -77,6 +77,20 @@ Kreise ohne Subkreise auf allen Ebenen gleich gross.
 9. Animationen nur ohne `prefers-reduced-motion`.
 10. Klickziele ≥ 24×24 px auf dem Bildschirm.
 
+Umsetzung und Befunde:
+
+- Navigation als reine Funktion in `circle-nav.ts`; Kinder eines Kreises = Lead-Link + Subkreise.
+  Geprüft mit der realen Struktur: alle 47 Einträge per Tastatur erreichbar, ←/→ konsistent.
+- Neue Tokens `--circle-stroke-1..5` (Light/Dark) in `globals.css`, je ≥ 3.5:1 auch auf den
+  übereinanderliegenden Füllungen; Chart-Tokens bleiben für die übrigen Diagramme unverändert.
+- d3 hält das Padding nur um den Skalierungsfaktor verkleinert ein (~0.57); das Layout misst den
+  tatsächlichen Rand und korrigiert das Padding iterativ. Titelband = 1.6 × Schriftgrösse
+  (`TITLE_BAND_FACTOR`): Titel 98 % der Sollgrösse, kleinste Kreise in der Übersicht 27 px,
+  min. Geschwisterabstand 20.4 Einheiten (Phase 1: 14.7).
+- Lead-Links < 24 px bekommen eine unsichtbare Klickfläche von 24 px.
+- Windows-Kontrastmodus (`forced-colors`): Umrisse in `CanvasText`, Fokus in `Highlight`.
+- axe-core (jsdom, ohne Farbkontrast – separat berechnet): 0 Verstösse.
+
 ## Phase 3 – Prüfung
 
 1. Automatisch: axe-core im Browser (0 schwere Verstösse); Layout-Prüfung auf Überlappung und

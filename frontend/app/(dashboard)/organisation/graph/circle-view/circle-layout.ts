@@ -14,7 +14,7 @@
  * Reine Funktion ohne React/DOM, damit sie separat geprüft werden kann.
  * ========================================================================== */
 
-import { hierarchy, pack, type HierarchyCircularNode } from 'd3-hierarchy';
+import { hierarchy, pack, type HierarchyCircularNode, type HierarchyNode } from 'd3-hierarchy';
 import { stripHtml } from '@/lib/utils';
 import type { GraphCircle, GraphRole, TreeNode } from './types';
 
@@ -41,9 +41,16 @@ export function titleFontSize(depth: number): number {
   return TITLE_FONT_BY_DEPTH[Math.min(depth, TITLE_FONT_BY_DEPTH.length - 1)];
 }
 
+/**
+ * Breite des Titelbandes relativ zur Schriftgrösse. 1.6 lässt über und unter
+ * der Schrift (Bogen-Grundlinie bei 1.18 em vom Rand) etwas Luft und hält die
+ * kleinsten Kreise in der Übersicht über 24 px (WCAG 2.5.8).
+ */
+export const TITLE_BAND_FACTOR = 1.6;
+
 /** Breite des Titelbandes (= Padding) eines Kreises mit Subkreisen. */
 function titleBand(depth: number): number {
-  return Math.max(MIN_GAP, titleFontSize(depth) * 1.9);
+  return Math.max(MIN_GAP, titleFontSize(depth) * TITLE_BAND_FACTOR);
 }
 
 export interface CircleItem {
@@ -106,6 +113,25 @@ function childrenOf(d: Datum): Datum[] | undefined {
 }
 
 /**
+ * Verhältnis von tatsächlichem zu verlangtem Rand bei Kreisen mit Subkreisen
+ * (Median). 1 = Padding wird exakt eingehalten.
+ */
+function measuredPaddingRatio(
+  packed: HierarchyCircularNode<Datum>,
+  desired: (n: HierarchyNode<Datum>) => number,
+): number {
+  const ratios: number[] = [];
+  for (const n of packed.descendants()) {
+    if (n.data.type !== 'circle' || !n.children?.length) continue;
+    const clearance = n.children.reduce((min, c) => Math.min(min, n.r - (Math.hypot(c.x - n.x, c.y - n.y) + c.r)), Infinity);
+    ratios.push(clearance / desired(n));
+  }
+  if (ratios.length === 0) return 1;
+  ratios.sort((a, b) => a - b);
+  return ratios[Math.floor(ratios.length / 2)];
+}
+
+/**
  * Berechnet Position und Radius aller Kreise und Lead-Links. Die Reihenfolge
  * der Rückgabe ist Eltern vor Kindern, damit innere Kreise beim Rendern
  * über den äusseren liegen.
@@ -117,15 +143,26 @@ export function layoutCircles(roots: TreeNode[]): LayoutItem[] {
     .sum(d => (d.type === 'role' ? ROLE_WEIGHT : d.type === 'circle' ? 1 : 0))
     .sort(() => 0); // Reihenfolge aus childrenOf beibehalten (bereits sortiert)
 
-  const packed = pack<Datum>()
-    .size([LAYOUT_SIZE, LAYOUT_SIZE])
-    .padding(n => {
-      const d = n.data;
-      if (d.type === 'root') return ROOT_GAP;
-      // n.depth ist um 1 verschoben (virtuelle Wurzel), die Kreisebene ist n.depth - 1.
-      if (d.type === 'circle' && d.node.children.length > 0) return titleBand(n.depth - 1);
-      return MIN_GAP;
-    })(root);
+  // Soll-Abstand je Knoten (in Einheiten der fertigen Packfläche).
+  const desiredPadding = (n: HierarchyNode<Datum>): number => {
+    const d = n.data;
+    if (d.type === 'root') return ROOT_GAP;
+    // n.depth ist um 1 verschoben (virtuelle Wurzel), die Kreisebene ist n.depth - 1.
+    if (d.type === 'circle' && d.node.children.length > 0) return titleBand(n.depth - 1);
+    return MIN_GAP;
+  };
+
+  // d3 wendet das Padding vor dem Einpassen in die Fläche an; danach ist es um
+  // den Skalierungsfaktor kleiner als verlangt. Deshalb wird gemessen und das
+  // Padding entsprechend vergrössert (konvergiert in wenigen Schritten).
+  let correction = 1;
+  let packed = pack<Datum>().size([LAYOUT_SIZE, LAYOUT_SIZE]).padding(n => desiredPadding(n) * correction)(root);
+  for (let i = 0; i < 6; i++) {
+    const ratio = measuredPaddingRatio(packed, desiredPadding);
+    if (!(ratio > 0) || Math.abs(ratio - 1) < 0.02) break;
+    correction /= ratio;
+    packed = pack<Datum>().size([LAYOUT_SIZE, LAYOUT_SIZE]).padding(n => desiredPadding(n) * correction)(root);
+  }
 
   // Bei genau einem Wurzelkreis ist die virtuelle Wurzel nur ein Rand – der
   // echte Wurzelkreis füllt die Fläche trotzdem fast vollständig aus.
@@ -142,7 +179,7 @@ export function layoutCircles(roots: TreeNode[]): LayoutItem[] {
       );
       const hasSubcircles = d.node.children.length > 0;
       const titleSize = hasSubcircles
-        ? Math.min(titleFontSize(circleDepth), clearance / 1.9)
+        ? Math.min(titleFontSize(circleDepth), clearance / TITLE_BAND_FACTOR)
         : Math.min(titleFontSize(circleDepth), n.r * 0.3);
       items.push({
         kind: 'circle',
@@ -166,8 +203,8 @@ export function layoutCircles(roots: TreeNode[]): LayoutItem[] {
             circle: d.node.circle,
             depth: circleDepth + 1,
             x: n.x,
-            y: n.y + n.r * 0.42,
-            r: n.r * 0.3,
+            y: n.y + n.r * 0.5,
+            r: n.r * 0.26,
           });
         });
       }
