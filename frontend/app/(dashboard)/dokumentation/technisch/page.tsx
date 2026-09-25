@@ -1,5 +1,6 @@
 'use client';
 
+import Image from 'next/image';
 import Link from 'next/link';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { ArrowLeft, Wrench } from 'lucide-react';
@@ -85,6 +86,20 @@ export default function TechnischeDokumentationPage() {
             <li><strong>Cross-Cutting</strong> — SecurityHeadersMiddleware, AuditMiddleware, Rate-Limiting, JWT-Authentifizierung, RBAC-Autorisierung</li>
             <li><strong>Data Access</strong> — Entity Framework Core (<code>BandSpiritDbContext</code>) auf PostgreSQL; automatisches Audit über die <code>SaveChangesAsync</code>-Override</li>
           </ul>
+          <figure className="not-prose mt-4">
+            <a href="/docs/BANDspirit-Systemarchitektur.jpeg" target="_blank" rel="noopener noreferrer" title="In voller Grösse öffnen">
+              <Image
+                src="/docs/BANDspirit-Systemarchitektur.jpeg"
+                alt="BANDspirit V2 Systemarchitektur: nginx, Frontend, API, PostgreSQL, Redis, MinIO sowie Entra ID und Exchange"
+                width={853}
+                height={987}
+                className="mx-auto h-auto w-full max-w-2xl rounded-lg border bg-white"
+              />
+            </a>
+            <figcaption className="mt-2 text-center text-xs text-muted-foreground">
+              Systemarchitektur BANDspirit V2 (Klick öffnet das Bild in voller Grösse)
+            </figcaption>
+          </figure>
         </CardContent>
       </Card>
 
