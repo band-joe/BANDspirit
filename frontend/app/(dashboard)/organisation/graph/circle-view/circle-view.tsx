@@ -3,8 +3,10 @@
 /* ==========================================================================
  * Kreisdarstellung (Holarchie) – grafische Ansicht des Organigramms.
  *
- * Portiert aus dem Backup frontend/backup/organigramm/page.grafik.tsx.bak
- * (Pan/Zoom, buildTree, rekursive Platzierung). Farben referenzieren die
+ * Anordnung per Circle-Packing (circle-layout.ts): Kreisgrösse folgt dem
+ * Inhalt, Abstände und Titelband über Padding, Lead-Links werden mitgepackt.
+ * Beschriftungen erscheinen erst, wenn sie auf dem Bildschirm lesbar gross
+ * sind (MIN_SCREEN_FONT_PX), sonst beim Hineinzoomen. Farben referenzieren die
  * CSS-Design-Tokens aus app/globals.css (HSL-Tripel, z.B. --chart-1: "173
  * 38% 44%") statt hartkodierter Hex-Werte, damit Light/Dark-Mode automatisch
  * funktionieren. Detail-Sidebar nutzt die Sheet-Komponente (Purpose/Domain/
@@ -28,6 +30,7 @@ import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { stripHtml } from '@/lib/utils';
 import type { GraphCircle, GraphRole, TreeNode } from './types';
+import { layoutCircles, fitText, LAYOUT_SIZE, type LayoutItem } from './circle-layout';
 
 /**
  * "Meine Rollen"-Filter. Da pro Kreis nur noch der Lead-Link angezeigt wird,
@@ -35,7 +38,7 @@ import type { GraphCircle, GraphRole, TreeNode } from './types';
  * Moderator) hier nicht mehr sinnvoll – alle sichtbaren Rollen sind bereits
  * Lead-Links.
  */
-type HighlightMode = 'none' | 'myRoles';
+export type HighlightMode = 'none' | 'myRoles';
 
 function roleMatchesHighlight(role: GraphRole, mode: HighlightMode, myRoleIds: Set<string>): boolean {
   switch (mode) {
@@ -99,15 +102,6 @@ function buildTree(circles: GraphCircle[]): TreeNode[] {
   return roots;
 }
 
-/* ------------------------------------------------------------------ */
-/*  Utility: get initials                                              */
-/* ------------------------------------------------------------------ */
-
-function getInitials(name: string | null): string {
-  if (!name) return '?';
-  return name.split(' ').map(p => p[0]).join('').toUpperCase().slice(0, 2);
-}
-
 type RoleBadgeType = keyof typeof ROLE_BADGE_COLORS;
 
 function getRoleBadgeType(role: GraphRole): RoleBadgeType {
@@ -118,224 +112,170 @@ function getRoleBadgeType(role: GraphRole): RoleBadgeType {
   return 'normal';
 }
 
-/* ------------------------------------------------------------------ */
-/*  SVG Rendering helpers                                              */
-/* ------------------------------------------------------------------ */
+/**
+ * Minimale Schriftgrösse auf dem Bildschirm (px), ab der Beschriftungen
+ * angezeigt werden. Kleinere Texte wären unlesbar und würden nur überlagern;
+ * sie erscheinen beim Hineinzoomen (der volle Name steht immer im <title>).
+ */
+const MIN_SCREEN_FONT_PX = 9;
 
-interface Bounds { minX: number; minY: number; maxX: number; maxY: number }
-
-interface RenderContext {
-  elements: React.ReactNode[];
-  keyCounter: number;
-  onCircleClick: (circleId: string) => void;
-  onRoleClick: (roleId: string, circleId: string) => void;
-  hoveredId: string | null;
-  setHoveredId: (id: string | null) => void;
-  bounds: Bounds;
-  highlightMode: HighlightMode;
-  myRoleIds: Set<string>;
+/** Bricht einen Text in höchstens `maxLines` Zeilen um, die in `maxWidth` passen. */
+function wrapText(text: string, fontSize: number, maxWidth: number, maxLines: number): string[] {
+  const words = text.split(/\s+/).filter(Boolean);
+  const lines: string[] = [];
+  let current = '';
+  for (const word of words) {
+    const candidate = current ? `${current} ${word}` : word;
+    if (fitText(candidate, fontSize, maxWidth) === candidate) {
+      current = candidate;
+      continue;
+    }
+    if (current) lines.push(current);
+    current = word;
+    if (lines.length === maxLines) break;
+  }
+  if (current && lines.length < maxLines) lines.push(current);
+  if (lines.length === 0) return [];
+  // Rest, der nicht mehr passt, mit Auslassungszeichen andeuten.
+  const shown = lines.join(' ');
+  const last = lines.length - 1;
+  lines[last] = fitText(shown.length < text.length ? lines[last] + ' …' : lines[last], fontSize, maxWidth);
+  return lines.filter(Boolean);
 }
 
-function renderConcentricCircle(
-  node: TreeNode,
-  cx: number,
-  cy: number,
-  radius: number,
-  ctx: RenderContext
-) {
-  const color = CIRCLE_COLORS[node.depth % CIRCLE_COLORS.length];
-  const k = ctx.keyCounter++;
-  const isHovered = ctx.hoveredId === `circle-${node.circle.id}`;
+/* ------------------------------------------------------------------ */
+/*  SVG-Ebene: Kreise und Lead-Links gemäss Layout                     */
+/* ------------------------------------------------------------------ */
 
-  // Inhaltsgrenzen mitführen, damit die Ansicht beim Aufruf passend gerahmt wird.
-  ctx.bounds.minX = Math.min(ctx.bounds.minX, cx - radius);
-  ctx.bounds.minY = Math.min(ctx.bounds.minY, cy - radius);
-  ctx.bounds.maxX = Math.max(ctx.bounds.maxX, cx + radius);
-  ctx.bounds.maxY = Math.max(ctx.bounds.maxY, cy + radius);
+export interface CircleLayerProps {
+  layout: LayoutItem[];
+  /** Bildschirm-Pixel pro SVG-Einheit (für die Lesbarkeitsgrenze der Texte). */
+  screenScale: number;
+  hoveredId: string | null;
+  setHoveredId: (id: string | null) => void;
+  highlightMode: HighlightMode;
+  myRoleIds: Set<string>;
+  handleCircleClick: (circleId: string) => void;
+  handleRoleClick: (roleId: string, circleId: string) => void;
+}
 
-  // Main circle ring
-  ctx.elements.push(
-    <g key={`circle-group-${k}`}>
-      <circle
-        cx={cx}
-        cy={cy}
-        r={radius}
-        fill={color.fill}
-        stroke={isHovered ? LABEL_COLOR : color.stroke}
-        strokeWidth={isHovered ? 3 : 2}
-        style={{ cursor: 'pointer', transition: 'all 0.2s' }}
-        onMouseEnter={() => ctx.setHoveredId(`circle-${node.circle.id}`)}
-        onMouseLeave={() => ctx.setHoveredId(null)}
-        onClick={() => ctx.onCircleClick(node.circle.id)}
-      />
-      {/* Circle name label at top (Titelband oben) */}
-      <text
-        x={cx}
-        y={cy - radius + Math.max(24, radius * 0.11)}
-        textAnchor="middle"
-        fill={LABEL_COLOR}
-        fontSize={Math.max(13, radius / 12)}
-        fontWeight="700"
-        style={{ pointerEvents: 'none' }}
-      >
-        {stripHtml(node.circle.name)}
-      </text>
-    </g>
-  );
+export function CircleLayer({
+  layout, screenScale, hoveredId, setHoveredId, highlightMode, myRoleIds, handleCircleClick, handleRoleClick,
+}: CircleLayerProps) {
+  const isReadable = (fontSize: number) => fontSize * screenScale >= MIN_SCREEN_FONT_PX;
 
-  // Pro Kreis nur den Lead-Link anzeigen (nicht alle Rollen) – hält die
-  // Grafik auf einen Blick lesbar; weitere Rollen sind über die Baumansicht
-  // bzw. die Kreis-Detailseite einsehbar.
-  const roles = node.circle.roles.filter(r => r.isLeadLink);
-  if (roles.length > 0) {
-    const roleRadius = Math.max(26, Math.min(40, radius / 5));
-    const placementRadius = radius - roleRadius - 8;
-    const startAngle = Math.PI * 0.6;
-    const endAngle = Math.PI * 2.4;
-    const angleStep = roles.length > 1 ? (endAngle - startAngle) / roles.length : 0;
+  return <>{layout.map(item => {
+    if (item.kind === 'circle') {
+      const color = CIRCLE_COLORS[item.depth % CIRCLE_COLORS.length];
+      const isHovered = hoveredId === `circle-${item.id}`;
+      const name = stripHtml(item.circle.name);
+      const fontSize = item.titleSize;
+      const hasLeadLinkInside = !item.hasSubcircles && item.circle.roles.some(r => r.isLeadLink);
 
-    roles.forEach((role, i) => {
-      const rk = ctx.keyCounter++;
-      const angle = roles.length === 1 ? Math.PI * 1.5 : startAngle + angleStep * i;
-      const rx = cx + Math.cos(angle) * placementRadius;
-      const ry = cy + Math.sin(angle) * placementRadius;
+      let label: React.ReactNode = null;
+      if (isReadable(fontSize)) {
+        if (item.hasSubcircles) {
+          // Titel entlang des oberen Bogens im freigehaltenen Titelband.
+          const arcRadius = item.r - fontSize * 1.18;
+          const text = fitText(name, fontSize, Math.PI * arcRadius * 0.7);
+          label = (
+            <>
+              <path
+                id={`arc-${item.id}`}
+                d={`M ${item.x - arcRadius} ${item.y} A ${arcRadius} ${arcRadius} 0 0 1 ${item.x + arcRadius} ${item.y}`}
+                fill="none"
+              />
+              <text fill={LABEL_COLOR} fontSize={fontSize} fontWeight="700" style={{ pointerEvents: 'none' }}>
+                <textPath href={`#arc-${item.id}`} startOffset="50%" textAnchor="middle">{text}</textPath>
+              </text>
+            </>
+          );
+        } else {
+          // Kreis ohne Subkreise: Titel mittig (bei Lead-Link etwas nach oben), max. 2 Zeilen.
+          const lines = wrapText(name, fontSize, item.r * 1.6, 2);
+          const centerY = hasLeadLinkInside ? item.y - item.r * 0.18 : item.y;
+          const firstY = centerY - ((lines.length - 1) * fontSize * 1.15) / 2 + fontSize * 0.35;
+          label = (
+            <text textAnchor="middle" fill={LABEL_COLOR} fontSize={fontSize} fontWeight="700" style={{ pointerEvents: 'none' }}>
+              {lines.map((line, li) => (
+                <tspan key={li} x={item.x} y={firstY + li * fontSize * 1.15}>{line}</tspan>
+              ))}
+            </text>
+          );
+        }
+      }
 
-      const badge = ROLE_BADGE_COLORS[getRoleBadgeType(role)];
-      const isRoleHovered = ctx.hoveredId === `role-${role.id}`;
-      const isHighlightMatch = roleMatchesHighlight(role, ctx.highlightMode, ctx.myRoleIds);
-      // Bei aktivem Filter/Highlight werden nicht-passende Rollen abgedunkelt
-      // statt ausgeblendet (Struktur/Platzierung bleibt unverändert).
-      const dimmed = ctx.highlightMode !== 'none' && !isHighlightMatch;
-
-      ctx.elements.push(
-        <g
-          key={`role-${rk}`}
-          onMouseEnter={() => ctx.setHoveredId(`role-${role.id}`)}
-          onMouseLeave={() => ctx.setHoveredId(null)}
-          onClick={() => ctx.onRoleClick(role.id, node.circle.id)}
-          opacity={dimmed ? 0.25 : 1}
-          style={{ cursor: 'pointer', transition: 'opacity 0.2s' }}
-        >
-          {/* Role node */}
+      return (
+        <g key={`circle-${item.id}`}>
           <circle
-            cx={rx}
-            cy={ry}
-            r={roleRadius}
-            fill={isRoleHovered ? badge.hoverBg : badge.bg}
-            stroke={badge.border}
-            strokeWidth={isRoleHovered || (!dimmed && ctx.highlightMode !== 'none') ? 2.5 : 1.5}
-            style={{ transition: 'all 0.2s' }}
-          />
-          {/* Role name */}
+            cx={item.x}
+            cy={item.y}
+            r={item.r}
+            fill={color.fill}
+            stroke={isHovered ? LABEL_COLOR : color.stroke}
+            strokeWidth={isHovered ? 3 : 2}
+            vectorEffect="non-scaling-stroke"
+            style={{ cursor: 'pointer', transition: 'stroke 0.2s' }}
+            onMouseEnter={() => setHoveredId(`circle-${item.id}`)}
+            onMouseLeave={() => setHoveredId(null)}
+            onClick={() => handleCircleClick(item.id)}
+          >
+            <title>{name}</title>
+          </circle>
+          {label}
+        </g>
+      );
+    }
+
+    // Lead-Link
+    const role = item.role;
+    const badge = ROLE_BADGE_COLORS[getRoleBadgeType(role)];
+    const isRoleHovered = hoveredId === `role-${role.id}`;
+    const isHighlightMatch = roleMatchesHighlight(role, highlightMode, myRoleIds);
+    // Bei aktivem Filter werden nicht-passende Rollen abgedunkelt statt
+    // ausgeblendet (Platzierung bleibt unverändert).
+    const dimmed = highlightMode !== 'none' && !isHighlightMatch;
+    const roleName = stripHtml(role.name);
+    const roleFont = Math.min(11, item.r * 0.3);
+    const roleText = isReadable(roleFont) ? fitText(roleName, roleFont, item.r * 1.7) : '';
+
+    return (
+      <g
+        key={`role-${item.id}`}
+        onMouseEnter={() => setHoveredId(`role-${role.id}`)}
+        onMouseLeave={() => setHoveredId(null)}
+        onClick={() => handleRoleClick(role.id, item.circle.id)}
+        opacity={dimmed ? 0.25 : 1}
+        style={{ cursor: 'pointer', transition: 'opacity 0.2s' }}
+      >
+        <circle
+          cx={item.x}
+          cy={item.y}
+          r={item.r}
+          fill={isRoleHovered ? badge.hoverBg : badge.bg}
+          stroke={badge.border}
+          strokeWidth={isRoleHovered || (!dimmed && highlightMode !== 'none') ? 2.5 : 1.5}
+          vectorEffect="non-scaling-stroke"
+          style={{ transition: 'fill 0.2s' }}
+        >
+          <title>{`${roleName} – ${stripHtml(item.circle.name)}`}</title>
+        </circle>
+        {roleText && (
           <text
-            x={rx}
-            y={ry - 2}
+            x={item.x}
+            y={item.y + roleFont * 0.35}
             textAnchor="middle"
             fill={LABEL_COLOR}
-            fontSize={Math.max(8, Math.min(10, roleRadius / 3.5))}
+            fontSize={roleFont}
             fontWeight="500"
             style={{ pointerEvents: 'none' }}
           >
-            {(() => {
-              const roleName = stripHtml(role.name);
-              return roleName.length > 14 ? roleName.slice(0, 12) + '…' : roleName;
-            })()}
+            {roleText}
           </text>
-          {/* Member avatars */}
-          {role.assignments.length > 0 && (
-            <g>
-              {role.assignments.slice(0, 3).map((a, ai) => {
-                const ak = ctx.keyCounter++;
-                const avatarR = 9;
-                const totalAvatars = Math.min(role.assignments.length, 3);
-                const avatarSpacing = avatarR * 2.2;
-                const startX = rx - ((totalAvatars - 1) * avatarSpacing) / 2;
-                const ax = startX + ai * avatarSpacing;
-                const ay = ry + roleRadius / 2.5;
-                return (
-                  <g key={`avatar-${ak}`}>
-                    <circle cx={ax} cy={ay} r={avatarR} fill="hsl(var(--primary))" stroke="hsl(var(--background))" strokeWidth={1.5} />
-                    <text x={ax} y={ay + 3} textAnchor="middle" fill="hsl(var(--primary-foreground))" fontSize={7} fontWeight="600" style={{ pointerEvents: 'none' }}>
-                      {getInitials(a.user.name)}
-                    </text>
-                  </g>
-                );
-              })}
-              {role.assignments.length > 3 && (
-                <text x={rx + 20} y={ry + roleRadius / 2.5 + 3} textAnchor="middle" fill="hsl(var(--muted-foreground))" fontSize={8}>
-                  +{role.assignments.length - 3}
-                </text>
-              )}
-            </g>
-          )}
-        </g>
-      );
-    });
-  }
-
-  // Subkreise rendern – das Titelband oben wird freigehalten, damit die
-  // Subkreise den Titel des übergeordneten Kreises NICHT überlagern. Die
-  // Subkreise werden auf einem Ring um die Mitte des nutzbaren Bereichs
-  // verteilt (bei 3 Kindern ergibt das automatisch ein Dreieck, bei mehr
-  // eine kreisförmige Anordnung) statt in einer Reihe – das nutzt die
-  // verfügbare Fläche in zwei Dimensionen aus statt nur horizontal.
-  const childCount = node.children.length;
-  if (childCount > 0) {
-    const titleBand = radius * 0.30;              // oben für den Titel reserviert
-    const usableTop = cy - radius + titleBand;     // Oberkante des nutzbaren Bereichs
-    const usableBottom = cy + radius * 0.82;       // Unterkante (etwas Rand lassen)
-    const usableHeight = usableBottom - usableTop;
-    const usableWidth = radius * 1.9;              // horizontal nutzbare Breite (nah am vollen Durchmesser)
-    const ringCenterY = usableTop + usableHeight / 2;
-    // Grösster Radius, den ein einzelner Kindkreis um die Ringmitte herum
-    // einnehmen darf, ohne oben/unten bzw. links/rechts über den nutzbaren
-    // Bereich hinauszuragen.
-    const boundCap = Math.min(usableHeight / 2, usableWidth / 2);
-
-    // packingFactor = Mindestabstand benachbarter Kreismitten relativ zum
-    // Kindradius (2.0 = Kreise berühren sich gerade). Aus der Sehnenlänge
-    // zwischen benachbarten Ringpunkten (2·ringRadius·sin(π/N)) ergibt sich
-    // der grösstmögliche Kindradius, der weder überlappt noch über den
-    // nutzbaren Bereich hinausragt.
-    const packingFactor = 2.05;
-    let childRadius: number;
-    let ringRadius: number;
-    if (childCount === 1) {
-      childRadius = boundCap;
-      ringRadius = 0;
-    } else {
-      const halfAngle = Math.PI / childCount;
-      childRadius = boundCap / (1 + packingFactor / (2 * Math.sin(halfAngle)));
-      ringRadius = (packingFactor * childRadius) / (2 * Math.sin(halfAngle));
-    }
-    childRadius = Math.max(childRadius, radius * 0.15);
-
-    node.children.forEach((child, i) => {
-      // Start oben (12-Uhr-Position), im Uhrzeigersinn verteilt – bei 3
-      // Kindern entsteht so ein auf der Spitze stehendes Dreieck.
-      const angle = childCount === 1 ? 0 : (2 * Math.PI * i) / childCount - Math.PI / 2;
-      const childCx = cx + Math.cos(angle) * ringRadius;
-      const childCy = ringCenterY + Math.sin(angle) * ringRadius;
-
-      // Verbindungslinie: startet unterhalb des Titelbandes, nicht am Titel.
-      ctx.elements.push(
-        <line
-          key={`link-${ctx.keyCounter++}`}
-          x1={cx}
-          y1={usableTop}
-          x2={childCx}
-          y2={childCy}
-          stroke={CIRCLE_COLORS[node.depth % CIRCLE_COLORS.length].stroke}
-          strokeWidth={1}
-          strokeDasharray="6,4"
-          opacity={0.4}
-          style={{ pointerEvents: 'none' }}
-        />
-      );
-
-      renderConcentricCircle(child, childCx, childCy, childRadius, ctx);
-    });
-  }
+        )}
+      </g>
+    );
+  })}</>;
 }
 
 /* ------------------------------------------------------------------ */
@@ -369,11 +309,22 @@ export function OrgCircleView({ circles, loading, error, onNavigateToTree }: Org
   const [selectedRole, setSelectedRole] = useState<{ circle: GraphCircle; role: GraphRole } | null>(null);
   const [highlightMode, setHighlightMode] = useState<HighlightMode>('none');
 
-  // Build tree
+  // Hierarchie aufbauen und per Circle-Packing anordnen (siehe circle-layout.ts).
   const tree = useMemo(() => buildTree(circles), [circles]);
+  const layout = useMemo(() => layoutCircles(tree), [tree]);
 
-  // Total roles for sizing
-  const totalRoles = useMemo(() => circles.reduce((s, c) => s + c.roles.length, 0), [circles]);
+  // Bildschirm-Pixel pro SVG-Einheit – bestimmt, welche Beschriftungen gross
+  // genug zum Lesen sind (siehe MIN_SCREEN_FONT_PX).
+  const [containerSize, setContainerSize] = useState({ w: 0, h: 0 });
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const observer = new ResizeObserver(([entry]) => {
+      setContainerSize({ w: entry.contentRect.width, h: entry.contentRect.height });
+    });
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
 
   // Rollen-IDs, in denen der aktuelle Benutzer besetzt ist ("Meine Rollen"-Filter).
   const myRoleIds = useMemo(() => {
@@ -439,66 +390,26 @@ export function OrgCircleView({ circles, loading, error, onNavigateToTree }: Org
     zoom(factor);
   }, [zoom]);
 
-  // Build SVG elements (inkl. Inhaltsgrenzen für die Rahmung beim Aufruf)
-  const { elements: svgElements, bounds } = useMemo<{ elements: React.ReactNode[]; bounds: Bounds | null }>(() => {
-    if (tree.length === 0) return { elements: [], bounds: null };
-
-    const ctx: RenderContext = {
-      elements: [],
-      keyCounter: 0,
-      onCircleClick: handleCircleClick,
-      onRoleClick: handleRoleClick,
-      hoveredId,
-      setHoveredId,
-      bounds: { minX: Infinity, minY: Infinity, maxX: -Infinity, maxY: -Infinity },
-      highlightMode,
-      myRoleIds,
-    };
-
-    const centerX = 800;
-    const centerY = 600;
-
-    if (tree.length === 1) {
-      const baseRadius = Math.max(600, Math.min(1500, 3 * (150 + totalRoles * 20)));
-      renderConcentricCircle(tree[0], centerX, centerY, baseRadius, ctx);
-    } else {
-      const rootCount = tree.length;
-      const baseRadius = Math.max(450, Math.min(1050, 3 * (100 + totalRoles * 10 / rootCount)));
-      // Ring-Radius an die grösseren Kreise anpassen, damit sie sich nicht berühren.
-      const ringRadius = Math.max(3 * 350, rootCount * baseRadius * 0.85);
-
-      tree.forEach((root, i) => {
-        const angle = (Math.PI * 2 * i) / rootCount - Math.PI / 2;
-        const rx = centerX + Math.cos(angle) * ringRadius;
-        const ry = centerY + Math.sin(angle) * ringRadius;
-        renderConcentricCircle(root, rx, ry, baseRadius, ctx);
-      });
-    }
-
-    return { elements: ctx.elements, bounds: ctx.bounds };
-  }, [tree, handleCircleClick, handleRoleClick, hoveredId, totalRoles, highlightMode, myRoleIds]);
-
-  // Standard-Ansicht: rahmt den gesamten Inhalt mit etwas Rand.
+  // Standard-Ansicht: rahmt die gesamte Packfläche mit etwas Rand.
+  const hasLayout = layout.length > 0;
   const defaultViewBox = useMemo(() => {
-    if (!bounds || !isFinite(bounds.minX)) return { x: 0, y: 0, w: 1600, h: 1200 };
-    const pad = Math.max(80, (bounds.maxX - bounds.minX) * 0.06);
-    return {
-      x: bounds.minX - pad,
-      y: bounds.minY - pad,
-      w: (bounds.maxX - bounds.minX) + pad * 2,
-      h: (bounds.maxY - bounds.minY) + pad * 2,
-    };
-  }, [bounds]);
+    const pad = LAYOUT_SIZE * 0.03;
+    return { x: -pad, y: -pad, w: LAYOUT_SIZE + pad * 2, h: LAYOUT_SIZE + pad * 2 };
+  }, []);
 
+  // SVG skaliert mit preserveAspectRatio "xMidYMid meet" -> der kleinere Faktor gilt.
+  const screenScale = containerSize.w > 0 && containerSize.h > 0
+    ? Math.min(containerSize.w / viewBox.w, containerSize.h / viewBox.h)
+    : 0;
   // Beim ersten Laden der Daten die Ansicht passend auf den Inhalt rahmen.
   const viewInitialized = useRef(false);
   useEffect(() => {
     defaultViewBoxRef.current = defaultViewBox;
-    if (!viewInitialized.current && bounds && isFinite(bounds.minX)) {
+    if (!viewInitialized.current && hasLayout) {
       setViewBox(defaultViewBox);
       viewInitialized.current = true;
     }
-  }, [bounds, defaultViewBox]);
+  }, [hasLayout, defaultViewBox]);
 
   return (
     <div className="space-y-4">
@@ -613,7 +524,16 @@ export function OrgCircleView({ circles, loading, error, onNavigateToTree }: Org
               <path d="M 40 0 L 0 0 0 40" fill="none" stroke="hsl(var(--border))" strokeWidth="0.5" opacity="0.5" />
             </pattern>
             <rect x={viewBox.x - 2000} y={viewBox.y - 2000} width={viewBox.w + 4000} height={viewBox.h + 4000} fill="url(#grid)" />
-            {svgElements}
+            <CircleLayer
+              layout={layout}
+              screenScale={screenScale}
+              hoveredId={hoveredId}
+              setHoveredId={setHoveredId}
+              highlightMode={highlightMode}
+              myRoleIds={myRoleIds}
+              handleCircleClick={handleCircleClick}
+              handleRoleClick={handleRoleClick}
+            />
           </svg>
         )}
       </div>
