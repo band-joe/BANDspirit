@@ -45,7 +45,9 @@ npm run start    # next start
 npm run lint      # next lint
 ```
 
-There is no configured frontend test runner (no `test` script in package.json).
+There is no configured frontend test runner (no `test` script in package.json). The graphical circle
+view has a standalone check script for layout and keyboard navigation:
+`npm run check:kreisansicht` (`scripts/check-kreisansicht.ts`, exit code 1 on failure).
 
 ### Full stack via Docker
 

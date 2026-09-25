@@ -100,6 +100,17 @@ Umsetzung und Befunde:
 3. Live auf der Test-VM mit Konten Mitglied, Lead-Link, Admin.
 4. Neue Testfälle im Testkonzept (Abschnitt Barrierefreiheit).
 
+Stand 25.09.2026:
+
+- Automatisch: `npm run check:kreisansicht` (`frontend/scripts/check-kreisansicht.ts`) prüft Layout
+  und Tastatur-Navigation für die Struktur der Testumgebung sowie Extremfälle (15 Subkreise,
+  7 Ebenen, mehrere Wurzelkreise); Exit-Code 1 bei Fehler. axe-core: 0 Verstösse (jsdom).
+- Erste Sichtprüfung auf der Test-VM durch den Product Owner: ok.
+- Testkonzept v0.2: Modul 04 um ORG-05 bis ORG-14 ergänzt (Anordnung, Tastatur, NVDA,
+  JAWS/VoiceOver, Browser-Zoom 200/400 %, Hell/Dunkel/Kontrastmodus, Touch, Meine Rollen,
+  Textalternative/Mausrad, Bewegung reduzieren).
+- Offen: Durchführung der manuellen Testfälle durch die Testerinnen und Tester.
+
 ## Phase 4 – Auslieferung
 
 MR je Branch → Merge → `scripts/deploy.sh --backup --build` auf der Test-VM → Test → GitHub-Push.
