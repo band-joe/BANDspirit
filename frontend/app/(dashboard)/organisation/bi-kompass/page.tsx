@@ -168,11 +168,16 @@ function parseChapters(markdown: string): Chapter[] {
     if (h1Match) {
       const heading = h1Match[1].trim();
       // Die allererste H1-Zeile im Dokument ist der Dokumenttitel (Header-
-      // Bereich), keine eigene Kapitel-Card.
+      // Bereich), keine eigene Kapitel-Card - ausser sie trägt eine
+      // Kapitelnummer: Der PDF-Import erzeugt keine Titel-H1, dort ist die
+      // erste H1 bereits "# 1. ..." und würde sonst samt Inhalt im Header
+      // verschwinden.
       if (!sawTitle) {
         sawTitle = true;
-        currentTitle = heading;
-        continue;
+        if (!/^\d+\. /.test(heading)) {
+          currentTitle = heading;
+          continue;
+        }
       }
       flush();
       currentLines = [];

@@ -190,54 +190,93 @@ public class BiKompassUploadController : ControllerBase
             // Verfügung, daher werden die Zeilen aus den Wortpositionen
             // rekonstruiert: Wörter mit annähernd gleicher vertikaler Position
             // (Grundlinie) bilden eine Zeile, von oben nach unten sortiert.
-            var zeilen = ZeilenAusWoertern(seite);
-            foreach (var zeile in zeilen)
-            {
-                // Leerzeilen unverändert übernehmen (Absatztrennung).
-                if (string.IsNullOrWhiteSpace(zeile))
-                {
-                    ausgabe.AppendLine();
-                    continue;
-                }
-
-                // Wiederkehrende Seiten-Fusszeile: komplett überspringen, statt sie
-                // als Fliesstext mitten in ein Kapitel zu übernehmen.
-                if (SeitenFusszeileMuster.IsMatch(zeile))
-                {
-                    continue;
-                }
-
-                // Inhaltsverzeichnis-Zeile: überspringen statt als (falsche)
-                // Kapitel-Überschrift zu übernehmen - der Inhalt ist ohnehin
-                // redundant zu den echten Überschriften weiter unten im Dokument.
-                if (KapitelMuster.IsMatch(zeile) && ToCZeilenMuster.IsMatch(zeile))
-                {
-                    continue;
-                }
-
-                var treffer = KapitelMuster.Match(zeile);
-                if (treffer.Success)
-                {
-                    var nummer = treffer.Groups["nummer"].Value;
-                    var titel = treffer.Groups["titel"].Value.Trim();
-
-                    // Überschriftenebene aus der Anzahl der Nummernsegmente
-                    // ableiten: "1" → H1, "1.1" → H2, "1.1.1" → H3 … (max. H6).
-                    var ebene = Math.Min(nummer.Split('.').Length, 6);
-                    var rauten = new string('#', ebene);
-                    ausgabe.AppendLine($"{rauten} {nummer}. {titel}");
-                }
-                else
-                {
-                    ausgabe.AppendLine(zeile.Trim());
-                }
-            }
+            ZeilenAlsMarkdown(ZeilenAusWoertern(seite), ausgabe);
 
             // Nach jeder Seite eine Leerzeile als Trennung einfügen.
             ausgabe.AppendLine();
         }
 
         return ausgabe.ToString().Trim();
+    }
+
+    /// <summary>
+    /// Wandelt die rekonstruierten Textzeilen einer Seite in Markdown um
+    /// (Kapitel-Überschriften, Fliesstext, Leerzeilen) und hängt sie an
+    /// <paramref name="ausgabe"/> an. Seiten-Fusszeilen und Einträge des
+    /// Inhaltsverzeichnisses werden übersprungen.
+    /// </summary>
+    internal static void ZeilenAlsMarkdown(IReadOnlyList<string> zeilen, StringBuilder ausgabe)
+    {
+        for (var i = 0; i < zeilen.Count; i++)
+        {
+            var zeile = zeilen[i];
+
+            // Leerzeilen unverändert übernehmen (Absatztrennung).
+            if (string.IsNullOrWhiteSpace(zeile))
+            {
+                ausgabe.AppendLine();
+                continue;
+            }
+
+            // Wiederkehrende Seiten-Fusszeile: komplett überspringen, statt sie
+            // als Fliesstext mitten in ein Kapitel zu übernehmen.
+            if (SeitenFusszeileMuster.IsMatch(zeile))
+            {
+                continue;
+            }
+
+            // Inhaltsverzeichnis-Zeile ("1.1 Titel ....... 3") oder Zeile mit
+            // Füllpunkten ohne Kapitelnummer ("Inhaltsverzeichnis ... 1"):
+            // überspringen - der Inhalt ist redundant zu den echten
+            // Überschriften weiter unten im Dokument.
+            if (ToCZeilenMuster.IsMatch(zeile))
+            {
+                continue;
+            }
+
+            var treffer = KapitelMuster.Match(zeile);
+            if (treffer.Success)
+            {
+                // Umbrochener Inhaltsverzeichnis-Eintrag: Nummer und Titelanfang
+                // stehen auf dieser Zeile, Titelrest mit Füllpunkten und
+                // Seitenzahl auf der nächsten ("2.3. Wo sind ... sowie" /
+                // "Entwicklungsziele abgebildet? ...... 4"). Beide überspringen.
+                var naechste = NaechsteTextzeile(zeilen, i);
+                if (naechste >= 0
+                    && ToCZeilenMuster.IsMatch(zeilen[naechste])
+                    && !KapitelMuster.IsMatch(zeilen[naechste]))
+                {
+                    i = naechste;
+                    continue;
+                }
+
+                var nummer = treffer.Groups["nummer"].Value;
+                var titel = treffer.Groups["titel"].Value.Trim();
+
+                // Überschriftenebene aus der Anzahl der Nummernsegmente
+                // ableiten: "1" → H1, "1.1" → H2, "1.1.1" → H3 … (max. H6).
+                var ebene = Math.Min(nummer.Split('.').Length, 6);
+                var rauten = new string('#', ebene);
+                ausgabe.AppendLine($"{rauten} {nummer}. {titel}");
+            }
+            else
+            {
+                ausgabe.AppendLine(zeile.Trim());
+            }
+        }
+    }
+
+    /// <summary>Index der nächsten nicht-leeren Zeile nach <paramref name="ab"/>, sonst -1.</summary>
+    private static int NaechsteTextzeile(IReadOnlyList<string> zeilen, int ab)
+    {
+        for (var j = ab + 1; j < zeilen.Count; j++)
+        {
+            if (!string.IsNullOrWhiteSpace(zeilen[j]))
+            {
+                return j;
+            }
+        }
+        return -1;
     }
 
     /// <summary>
