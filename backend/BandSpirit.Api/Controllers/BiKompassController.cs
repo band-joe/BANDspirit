@@ -173,6 +173,20 @@ public class BiKompassUploadController : ControllerBase
     }
 
     /// <summary>
+    /// Eine rekonstruierte Textzeile der PDF mit ihrer typischen Schriftgrösse
+    /// (Median der Buchstaben, in Punkt) und ob sie überwiegend fett gesetzt ist.
+    /// </summary>
+    internal sealed record PdfZeile(string Text, double Schriftgroesse = 0, bool IstFett = false);
+
+    /// <summary>
+    /// Faktor, um den eine Zeile grösser als der Fliesstext sein muss, damit
+    /// eine einstellige Nummer ("3. Titel") als Hauptkapitel gilt. Im BI-Kompass:
+    /// Fliesstext ~10 pt, Hauptkapitel 15 pt, Unterkapitel 13 pt, nummerierte
+    /// Listen 9.5-10 pt.
+    /// </summary>
+    private const double UeberschriftFaktor = 1.2;
+
+    /// <summary>
     /// Extrahiert den Text der PDF seitenweise mit UglyToad.PdfPig und bereitet
     /// ihn als Markdown auf. Zeilen, die mit einer Kapitel-Nummerierung beginnen
     /// (z. B. "1.", "1.1.", "1.1.1."), werden zu Überschriften der passenden
@@ -184,54 +198,25 @@ public class BiKompassUploadController : ControllerBase
         var ausgabe = new StringBuilder();
 
         using var dokument = PdfDocument.Open(daten);
-        foreach (var seite in dokument.GetPages())
+
+        // Der ContentOrderTextExtractor steht in diesem Paketstand nicht zur
+        // Verfügung, daher werden die Zeilen aus den Wortpositionen
+        // rekonstruiert: Wörter mit annähernd gleicher vertikaler Position
+        // (Grundlinie) bilden eine Zeile, von oben nach unten sortiert.
+        var seiten = dokument.GetPages().Select(ZeilenAusWoertern).ToList();
+
+        // Fliesstext-Schriftgrösse = die Grösse, in der die meisten Zeichen
+        // des Dokuments gesetzt sind.
+        var fliesstextGroesse = seiten
+            .SelectMany(z => z)
+            .GroupBy(z => Math.Round(z.Schriftgroesse * 2) / 2)
+            .OrderByDescending(g => g.Sum(z => z.Text.Length))
+            .Select(g => g.Key)
+            .FirstOrDefault();
+
+        foreach (var zeilen in seiten)
         {
-            // Der ContentOrderTextExtractor steht in diesem Paketstand nicht zur
-            // Verfügung, daher werden die Zeilen aus den Wortpositionen
-            // rekonstruiert: Wörter mit annähernd gleicher vertikaler Position
-            // (Grundlinie) bilden eine Zeile, von oben nach unten sortiert.
-            var zeilen = ZeilenAusWoertern(seite);
-            foreach (var zeile in zeilen)
-            {
-                // Leerzeilen unverändert übernehmen (Absatztrennung).
-                if (string.IsNullOrWhiteSpace(zeile))
-                {
-                    ausgabe.AppendLine();
-                    continue;
-                }
-
-                // Wiederkehrende Seiten-Fusszeile: komplett überspringen, statt sie
-                // als Fliesstext mitten in ein Kapitel zu übernehmen.
-                if (SeitenFusszeileMuster.IsMatch(zeile))
-                {
-                    continue;
-                }
-
-                // Inhaltsverzeichnis-Zeile: überspringen statt als (falsche)
-                // Kapitel-Überschrift zu übernehmen - der Inhalt ist ohnehin
-                // redundant zu den echten Überschriften weiter unten im Dokument.
-                if (KapitelMuster.IsMatch(zeile) && ToCZeilenMuster.IsMatch(zeile))
-                {
-                    continue;
-                }
-
-                var treffer = KapitelMuster.Match(zeile);
-                if (treffer.Success)
-                {
-                    var nummer = treffer.Groups["nummer"].Value;
-                    var titel = treffer.Groups["titel"].Value.Trim();
-
-                    // Überschriftenebene aus der Anzahl der Nummernsegmente
-                    // ableiten: "1" → H1, "1.1" → H2, "1.1.1" → H3 … (max. H6).
-                    var ebene = Math.Min(nummer.Split('.').Length, 6);
-                    var rauten = new string('#', ebene);
-                    ausgabe.AppendLine($"{rauten} {nummer}. {titel}");
-                }
-                else
-                {
-                    ausgabe.AppendLine(zeile.Trim());
-                }
-            }
+            ZeilenAlsMarkdown(zeilen, fliesstextGroesse, ausgabe);
 
             // Nach jeder Seite eine Leerzeile als Trennung einfügen.
             ausgabe.AppendLine();
@@ -241,13 +226,136 @@ public class BiKompassUploadController : ControllerBase
     }
 
     /// <summary>
+    /// Wandelt die rekonstruierten Textzeilen einer Seite in Markdown um
+    /// (Kapitel-Überschriften, Fliesstext, Leerzeilen) und hängt sie an
+    /// <paramref name="ausgabe"/> an. Seiten-Fusszeilen und Einträge des
+    /// Inhaltsverzeichnisses werden übersprungen.
+    /// </summary>
+    /// <param name="fliesstextGroesse">
+    /// Schriftgrösse des Fliesstexts; 0 = unbekannt (dann gilt jede
+    /// nummerierte Zeile als Überschrift).
+    /// </param>
+    internal static void ZeilenAlsMarkdown(
+        IReadOnlyList<PdfZeile> zeilen, double fliesstextGroesse, StringBuilder ausgabe)
+    {
+        for (var i = 0; i < zeilen.Count; i++)
+        {
+            var zeile = zeilen[i].Text;
+
+            // Leerzeilen unverändert übernehmen (Absatztrennung).
+            if (string.IsNullOrWhiteSpace(zeile))
+            {
+                ausgabe.AppendLine();
+                continue;
+            }
+
+            // Wiederkehrende Seiten-Fusszeile: komplett überspringen, statt sie
+            // als Fliesstext mitten in ein Kapitel zu übernehmen.
+            if (SeitenFusszeileMuster.IsMatch(zeile))
+            {
+                continue;
+            }
+
+            // Inhaltsverzeichnis-Zeile ("1.1 Titel ....... 3") oder Zeile mit
+            // Füllpunkten ohne Kapitelnummer ("Inhaltsverzeichnis ... 1"):
+            // überspringen - der Inhalt ist redundant zu den echten
+            // Überschriften weiter unten im Dokument.
+            if (ToCZeilenMuster.IsMatch(zeile))
+            {
+                continue;
+            }
+
+            var treffer = KapitelMuster.Match(zeile);
+            var nummer = treffer.Groups["nummer"].Value;
+
+            // Einstellige Nummer ("1. ...") in Fliesstextgrösse ist ein Punkt
+            // einer nummerierten Liste, kein Hauptkapitel. Mehrstufige Nummern
+            // ("3.2", "3.2.1") kommen in Listen nicht vor und bleiben Überschriften.
+            if (treffer.Success
+                && !nummer.Contains('.')
+                && fliesstextGroesse > 0
+                && zeilen[i].Schriftgroesse < fliesstextGroesse * UeberschriftFaktor)
+            {
+                ausgabe.AppendLine(zeile.Trim());
+                continue;
+            }
+
+            if (treffer.Success)
+            {
+                // Umbrochener Inhaltsverzeichnis-Eintrag: Nummer und Titelanfang
+                // stehen auf dieser Zeile, Titelrest mit Füllpunkten und
+                // Seitenzahl auf der nächsten ("2.3. Wo sind ... sowie" /
+                // "Entwicklungsziele abgebildet? ...... 4"). Beide überspringen.
+                var naechste = NaechsteTextzeile(zeilen, i);
+                if (naechste >= 0
+                    && ToCZeilenMuster.IsMatch(zeilen[naechste].Text)
+                    && !KapitelMuster.IsMatch(zeilen[naechste].Text))
+                {
+                    i = naechste;
+                    continue;
+                }
+
+                var titel = treffer.Groups["titel"].Value.Trim();
+
+                // Über mehrere Zeilen umbrochene Überschrift: Folgezeilen in
+                // derselben (grösseren) Schrift gehören noch zum Titel.
+                while (i + 1 < zeilen.Count && IstTitelFortsetzung(zeilen[i], zeilen[i + 1], fliesstextGroesse))
+                {
+                    i++;
+                    titel += " " + zeilen[i].Text.Trim();
+                }
+
+                // Überschriftenebene aus der Anzahl der Nummernsegmente
+                // ableiten: "1" → H1, "1.1" → H2, "1.1.1" → H3 … (max. H6).
+                var ebene = Math.Min(nummer.Split('.').Length, 6);
+                var rauten = new string('#', ebene);
+                ausgabe.AppendLine($"{rauten} {nummer}. {titel}");
+            }
+            else
+            {
+                ausgabe.AppendLine(zeile.Trim());
+            }
+        }
+    }
+
+    /// <summary>
+    /// Prüft, ob <paramref name="folgezeile"/> die Fortsetzung eines umbrochenen
+    /// Überschriftentitels ist: gleiche Schrift (Grösse und Fettdruck) wie die
+    /// Überschrift, Überschrift grösser als der Fliesstext, keine eigene Nummer.
+    /// </summary>
+    private static bool IstTitelFortsetzung(PdfZeile ueberschrift, PdfZeile folgezeile, double fliesstextGroesse)
+    {
+        return fliesstextGroesse > 0
+               && ueberschrift.Schriftgroesse >= fliesstextGroesse * UeberschriftFaktor
+               && Math.Abs(folgezeile.Schriftgroesse - ueberschrift.Schriftgroesse) < 0.5
+               && folgezeile.IstFett == ueberschrift.IstFett
+               && !string.IsNullOrWhiteSpace(folgezeile.Text)
+               && !KapitelMuster.IsMatch(folgezeile.Text)
+               && !ToCZeilenMuster.IsMatch(folgezeile.Text)
+               && !SeitenFusszeileMuster.IsMatch(folgezeile.Text);
+    }
+
+    /// <summary>Index der nächsten nicht-leeren Zeile nach <paramref name="ab"/>, sonst -1.</summary>
+    private static int NaechsteTextzeile(IReadOnlyList<PdfZeile> zeilen, int ab)
+    {
+        for (var j = ab + 1; j < zeilen.Count; j++)
+        {
+            if (!string.IsNullOrWhiteSpace(zeilen[j].Text))
+            {
+                return j;
+            }
+        }
+        return -1;
+    }
+
+    /// <summary>
     /// Rekonstruiert die Textzeilen einer PDF-Seite aus den einzelnen Wörtern.
     /// PdfPig liefert Wörter mit Positionsangabe (BoundingBox); Wörter mit
     /// annähernd gleicher vertikaler Grundlinie werden zu einer Zeile
     /// zusammengefasst. Die Zeilen werden von oben nach unten, die Wörter
     /// innerhalb einer Zeile von links nach rechts sortiert.
     /// </summary>
-    private static List<string> ZeilenAusWoertern(Page seite)
+    private static List<PdfZeile> ZeilenAusWoertern(Page seite)
     {
         // Toleranz in PDF-Punkten, innerhalb derer zwei Wörter derselben Zeile
         // zugeordnet werden (kompensiert leichte Grundlinien-Schwankungen).
@@ -258,7 +366,7 @@ public class BiKompassUploadController : ControllerBase
             .ToList();
         if (woerter.Count == 0)
         {
-            return new List<string>();
+            return new List<PdfZeile>();
         }
 
         // Wörter nach fallender vertikaler Position (oben zuerst) gruppieren.
@@ -278,7 +386,7 @@ public class BiKompassUploadController : ControllerBase
             }
         }
 
-        var zeilen = new List<string>();
+        var zeilen = new List<PdfZeile>();
         foreach (var gruppe in zeilenGruppen.OrderByDescending(g => g.Oben))
         {
             var text = string.Join(
@@ -286,7 +394,14 @@ public class BiKompassUploadController : ControllerBase
                 gruppe.Woerter
                     .OrderBy(w => w.BoundingBox.Left)
                     .Select(w => w.Text));
-            zeilen.Add(text.Trim());
+
+            var buchstaben = gruppe.Woerter.SelectMany(w => w.Letters).ToList();
+            var groessen = buchstaben.Select(b => b.PointSize).OrderBy(g => g).ToList();
+            var median = groessen.Count > 0 ? groessen[groessen.Count / 2] : 0;
+            var istFett = buchstaben.Count(b => b.FontName?.Contains("Bold", StringComparison.OrdinalIgnoreCase) == true)
+                          * 2 > buchstaben.Count;
+
+            zeilen.Add(new PdfZeile(text.Trim(), median, istFett));
         }
 
         return zeilen;
