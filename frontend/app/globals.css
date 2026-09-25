@@ -58,6 +58,14 @@
     --chart-3: 35 80% 55%;
     --chart-4: 0 72% 55%;
     --chart-5: 200 45% 42%;
+
+    /* Kreisansicht: Umrisse je Kreistiefe, >= 3.5:1 auch auf den
+       übereinanderliegenden 10-%-Füllungen (WCAG 1.4.11). */
+    --circle-stroke-1: 173 38% 32%;
+    --circle-stroke-2: 152 42% 31%;
+    --circle-stroke-3: 35 80% 31%;
+    --circle-stroke-4: 0 72% 45%;
+    --circle-stroke-5: 200 45% 37%;
   }
 
   .dark {
@@ -85,6 +93,12 @@
     --chart-3: 35 80% 55%;
     --chart-4: 0 72% 55%;
     --chart-5: 200 45% 45%;
+
+    --circle-stroke-1: 173 38% 52%;
+    --circle-stroke-2: 152 42% 51%;
+    --circle-stroke-3: 35 80% 55%;
+    --circle-stroke-4: 0 72% 73%;
+    --circle-stroke-5: 200 45% 62%;
   }
 }
 
