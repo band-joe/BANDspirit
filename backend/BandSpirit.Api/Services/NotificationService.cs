@@ -151,10 +151,23 @@ public class NotificationService
             using var client = new SmtpClient();
             await client.ConnectAsync(SmtpHost, SmtpPort, secureOption);
 
-            // Authentifizierung nur, wenn Benutzer gesetzt ist (interne Relays oft ohne Auth)
+            // Authentifizierung nur, wenn Benutzer gesetzt ist UND der Server AUTH
+            // anbietet. Interne Relays (z. B. fw.band.ch) geben nach IP frei und
+            // kennen kein AUTH - ein trotzdem gesetzter Smtp:User liess den Versand
+            // bisher mit NotSupportedException scheitern.
             if (!string.IsNullOrEmpty(SmtpUser))
             {
-                await client.AuthenticateAsync(SmtpUser, SmtpPassword);
+                if (client.Capabilities.HasFlag(SmtpCapabilities.Authentication))
+                {
+                    await client.AuthenticateAsync(SmtpUser, SmtpPassword);
+                }
+                else
+                {
+                    _logger.LogWarning(
+                        "SMTP-Server {Host}:{Port} bietet keine Authentifizierung an, Smtp:User ist aber gesetzt. " +
+                        "Versand erfolgt ohne Anmeldung (Relay). Smtp:User leeren, um diese Warnung zu vermeiden.",
+                        SmtpHost, SmtpPort);
+                }
             }
 
             await client.SendAsync(message);
